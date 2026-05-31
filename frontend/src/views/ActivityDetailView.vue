@@ -32,8 +32,15 @@ const canRegister = computed(() => {
 
 const canCancel = computed(() => {
   const a = activity.value
-  return a?.status === 'open' && a.is_registered && a.registration_status === 'registered'
+  if (!a) return false
+  // 活动必须是报名中状态或修改待审核状态（仍然允许取消报名）
+  const isOpen = a.status === 'open' || a.status === 'edit_pending'
+  // 用户已报名，且报名状态是有效的（registered 或 re_registered）
+  const isActive = a.is_registered === true && 
+    (a.registration_status === 'registered' || a.registration_status === 're_registered')
+  return isOpen && isActive
 })
+
 
 function isCheckedIn(a: ActivityDetail) {
   return a.check_status === true || a.check_status === 'true'
@@ -85,8 +92,10 @@ async function handleCancel() {
     toast.success('取消成功，名额将在2分钟后释放')
     activity.value.is_registered = false
     activity.value.registration_status = 'cancelled'
-    if (activity.value.current_participants > 0) activity.value.current_participants -= 1
     showCancelConfirm.value = false
+    setTimeout(() => {
+      loadDetail()
+    }, 120000)
   } catch (e) {
     showApiError(e)
   } finally {
