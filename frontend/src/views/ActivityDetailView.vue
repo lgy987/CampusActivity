@@ -25,9 +25,11 @@ const showCheckinDialog = ref(false)
 
 const canRegister = computed(() => {
   const a = activity.value
-  if (!a || a.status !== 'open' || a.is_registered) return false
-  const rs = a.registration_status
-  return rs !== 'blocked' && rs !== 'rejected'
+  if (!a || (a.status !== 'open' && a.status !== 'edit_pending')) return false
+  if (a.is_registered) return false
+  // 只有永久封禁的用户不能报名
+  // 被拒绝（rejected）的用户可以报名，会显示"重新报名"按钮
+  return a.registration_status !== 'blocked'
 })
 
 const canCancel = computed(() => {
@@ -162,7 +164,10 @@ async function handleCheckin(code: string) {
             <div class="flex justify-between"><dt class="text-gray-500">报名截止</dt><dd class="text-xs">{{ formatDateTime(activity.registration_deadline) }}</dd></div>
             <div class="flex justify-between"><dt class="text-gray-500">取消截止</dt><dd class="text-xs">{{ formatDateTime(activity.cancel_deadline) }}</dd></div>
           </dl>
+          
+          <!-- 按钮区域 -->
           <div class="mt-6 flex gap-3">
+            <!-- 可以报名（未报名且未被封禁） -->
             <button
               v-if="canRegister"
               type="button"
@@ -172,6 +177,7 @@ async function handleCheckin(code: string) {
             >
               报名
             </button>
+            <!-- 可以取消报名 -->
             <button
               v-else-if="canCancel"
               type="button"
@@ -181,15 +187,36 @@ async function handleCheckin(code: string) {
             >
               取消报名
             </button>
+            <!-- 被拒绝（rejected）可以重新报名 -->
+            <button
+              v-else-if="activity.registration_status === 'rejected'"
+              type="button"
+              class="proto-btn-outline flex-1"
+              :disabled="actionLoading"
+              @click="handleRegister"
+            >
+              重新报名
+            </button>
+            <!-- 永久封禁 -->
             <button
               v-else-if="activity.registration_status === 'blocked'"
               type="button"
               class="proto-btn-outline flex-1 opacity-50"
               disabled
             >
-              不可报名
+              已被禁止报名
             </button>
-            <button v-else type="button" class="proto-btn-outline flex-1 opacity-50" disabled>已截止</button>
+            <!-- 活动已截止或其他情况 -->
+            <button
+              v-else
+              type="button"
+              class="proto-btn-outline flex-1 opacity-50"
+              disabled
+            >
+              已截止
+            </button>
+            
+            <!-- 签到按钮 -->
             <button
               type="button"
               class="proto-btn-outline flex-1"

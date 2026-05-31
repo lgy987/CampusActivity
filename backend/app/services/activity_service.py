@@ -186,18 +186,35 @@ class ActivityService:
                 except ValueError:
                     raise BusinessError('组织者ID无效')
             if start_date:
-                start_time = ActivityService._parse_datetime(start_date)
-                if not start_time:
+                from datetime import timezone, timedelta
+                try:
+                    # 解析本地日期
+                    local_date = datetime.strptime(start_date, '%Y-%m-%d')
+                    # 本地日期的开始时间（00:00:00）转换为 UTC
+                    # 假设本地时区为东八区（UTC+8）
+                    china_tz = timezone(timedelta(hours=8))
+                    local_start = local_date.replace(tzinfo=china_tz)
+                    utc_start = local_start.astimezone(timezone.utc).replace(tzinfo=None)
+                    local_end = local_date.replace(hour=23, minute=59, second=59, tzinfo=china_tz)
+                    utc_end = local_end.astimezone(timezone.utc).replace(tzinfo=None)
+                     # 筛选当天范围内的活动
+                    query = query.filter(
+                        Activity.start_time >= utc_start,
+                        Activity.start_time <= utc_end
+                    )
+                    # 筛选 start_time >= UTC 开始时间
+                except ValueError:
                     raise BusinessError('start_date无效')
-                query = query.filter(Activity.start_time >= start_time)
 
             total = query.count()
             rows = query.order_by(Activity.start_time.desc(), Activity.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
 
             categories = ActivityService._category_map(session)
+            from app.services.registration_service import RegistrationService
             items = []
             for row in rows:
                 category = categories.get(row.category_id)
+                current_participants = RegistrationService._active_count(session, row.id)
                 items.append({
                     'activity_id': row.id,
                     'name': row.name,
@@ -206,7 +223,7 @@ class ActivityService:
                     'category_path': ActivityService._category_path(row.category_id, categories) if category else None,
                     'location': row.location,
                     'campus': row.campus,
-                    'current_participants': row.current_participants,
+                    'current_participants': current_participants,
                     'max_participants': row.max_participants
                 })
 
@@ -217,7 +234,7 @@ class ActivityService:
         """获取活动详情"""
         with db_session() as session:
             activity = session.get(Activity, activity_id)
-            if not activity or activity.status == 'removed':
+            if not activity:
                 raise BusinessError('活动不存在', code=404, status_code=404)
 
             organizer = session.get(Organizer, activity.organizer_id)
@@ -242,6 +259,9 @@ class ActivityService:
                     Checkin.activity_id == activity_id, Checkin.user_id == user_id
                 ).first()
 
+            from app.services.registration_service import RegistrationService
+            current_participants = RegistrationService._active_count(session, activity_id)
+
             category = categories.get(source.category_id)
             return {
                 'activity_id': activity.id,
@@ -256,7 +276,7 @@ class ActivityService:
                 'campus': source.campus,
                 'location': source.location,
                 'max_participants': source.max_participants,
-                'current_participants': activity.current_participants,
+                'current_participants': current_participants,
                 'registration_deadline': dt(source.registration_deadline),
                 'cancel_deadline': dt(source.cancel_deadline),
                 'description': source.description,
@@ -281,6 +301,13 @@ class ActivityService:
             if not session.get(Category, payload['category_id']):
                 raise BusinessError('活动分类不存在', code=404, status_code=404)
 
+            from datetime import datetime, timedelta
+            now = datetime.utcnow()
+            # 如果活动已发布（open/ongoing/edit_pending），检查是否在开始前1小时内
+            if activity.status in ('open', 'ongoing', 'edit_pending'):
+                if now >= activity.start_time - timedelta(hours=1):
+                    raise BusinessError('活动开始前1小时内不允许修改', code=400)
+                
             # 人数限制校验：已发布活动只能增加不能减少
             if activity.status in ('open', 'ongoing', 'edit_pending') and payload['max_participants'] < activity.max_participants:
                 raise BusinessError('人数限制只能增加，不能减少', code=400)
@@ -345,7 +372,6 @@ class ActivityService:
         revision.description = payload['description']
 
     @staticmethod
-    @staticmethod
     def delete_activity(organizer_id, activity_id):
         """删除活动（组织者）- 彻底删除活动及所有相关数据"""
         with db_session() as session:
@@ -378,9 +404,9 @@ class ActivityService:
             for (user_id,) in registered_users:
                 NotificationService.create_notification(
                     session, 'user', user_id,
-                    'Activity Deleted',
-                    f'The activity {activity_name} has been deleted by the organizer.',
-                    'activity_audit_result', activity_id
+                    '活动删除',
+                    f'你的活动 {activity_name} 被组织者删除了。',
+                    'activity_change', activity_id
             )
         
             # 通知组织者自己
@@ -443,10 +469,24 @@ class ActivityService:
             if statuses:
                 query = query.filter(Activity.status.in_(statuses))
             if start_date:
-                start_time = ActivityService._parse_datetime(start_date)
-                if not start_time:
+                from datetime import timezone, timedelta
+                try:
+                    # 解析本地日期
+                    local_date = datetime.strptime(start_date, '%Y-%m-%d')
+                    # 本地日期的开始时间（00:00:00）转换为 UTC
+                    # 假设本地时区为东八区（UTC+8）
+                    china_tz = timezone(timedelta(hours=8))
+                    local_start = local_date.replace(tzinfo=china_tz)
+                    utc_start = local_start.astimezone(timezone.utc).replace(tzinfo=None)
+                    local_end = local_date.replace(hour=23, minute=59, second=59, tzinfo=china_tz)
+                    utc_end = local_end.astimezone(timezone.utc).replace(tzinfo=None)
+                
+                    query = query.filter(
+                        Activity.start_time >= utc_start,
+                        Activity.start_time <= utc_end
+                    )
+                except ValueError:
                     raise BusinessError('start_date无效')
-                query = query.filter(Activity.start_time >= start_time)
 
             total = query.count()
             rows = query.order_by(Activity.start_time.desc(), Activity.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
@@ -503,10 +543,24 @@ class ActivityService:
                 except ValueError:
                     raise BusinessError('分类ID无效')
             if start_date:
-                start_time = ActivityService._parse_datetime(start_date)
-                if not start_time:
+                from datetime import timezone, timedelta
+                try:
+                    # 解析本地日期
+                    local_date = datetime.strptime(start_date, '%Y-%m-%d')
+                    # 本地日期的开始时间（00:00:00）转换为 UTC
+                    # 假设本地时区为东八区（UTC+8）
+                    china_tz = timezone(timedelta(hours=8))
+                    local_start = local_date.replace(tzinfo=china_tz)
+                    utc_start = local_start.astimezone(timezone.utc).replace(tzinfo=None)
+                    local_end = local_date.replace(hour=23, minute=59, second=59, tzinfo=china_tz)
+                    utc_end = local_end.astimezone(timezone.utc).replace(tzinfo=None)
+                
+                    query = query.filter(
+                        Activity.start_time >= utc_start,
+                        Activity.start_time <= utc_end
+                    )
+                except ValueError:
                     raise BusinessError('start_date无效')
-                query = query.filter(Activity.start_time >= start_time)
 
             total = query.count()
             rows = query.order_by(Activity.start_time.desc(), Activity.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
@@ -540,9 +594,14 @@ class ActivityService:
             if activity.status not in ('pending', 'edit_pending'):
                 raise BusinessError('当前活动状态不可审核', code=400)
 
+            is_edit_pending = (activity.status == 'edit_pending')
+            revision = None
+        
+            if is_edit_pending:
+                revision = session.query(ActivityRevision).filter(ActivityRevision.activity_id == activity.id).first()
+
             if action == 'approve':
-                if activity.status == 'edit_pending':
-                    revision = session.query(ActivityRevision).filter(ActivityRevision.activity_id == activity.id).first()
+                if is_edit_pending:
                     if revision:
                         ActivityService._apply_activity_fields(activity, {
                             'name': revision.name,
@@ -562,10 +621,32 @@ class ActivityService:
                     activity.status = 'open'
                 activity.reject_reason = None
                 new_status = activity.status
-                notice_content = f'你的活动 {activity.name} 已通过审核。'
-            else:
-                if activity.status == 'edit_pending':
-                    revision = session.query(ActivityRevision).filter(ActivityRevision.activity_id == activity.id).first()
+            
+                # 通知组织者
+                organizer_notice = f'你的活动 {activity.name} 已通过审核。'
+                NotificationService.create_notification(
+                    session, 'organizer', activity.organizer_id,
+                    '活动审核结果', organizer_notice,
+                    'activity_audit_result', activity.id
+                )
+            
+                # 如果是 edit_pending，还需要通知所有已报名用户活动已变更
+                if is_edit_pending:
+                    # 获取所有已报名用户
+                    registered_users = session.query(Registration.user_id).filter(
+                        Registration.activity_id == activity_id,
+                        Registration.status.in_(('registered', 're_registered'))
+                    ).all()
+                
+                    user_notice = f'活动 "{activity.name}" 信息已更新，请查看最新详情。'
+                    for (user_id,) in registered_users:
+                        NotificationService.create_notification(
+                            session, 'user', user_id,
+                            '活动变更通知', user_notice,
+                            'activity_change', activity.id
+                        )
+            else:  # reject
+                if is_edit_pending:
                     if revision:
                         session.delete(revision)
                     activity.status = ActivityService._compute_activity_status(activity)
@@ -575,16 +656,16 @@ class ActivityService:
                     activity.status = 'rejected'
                     activity.reject_reason = reject_reason
                     new_status = 'rejected'
-                notice_content = f'你的活动 {activity.name} 被拒绝。原因: {reject_reason}'
+            
+                organizer_notice = f'你的活动 {activity.name} 被拒绝。原因: {reject_reason}'
+                NotificationService.create_notification(
+                    session, 'organizer', activity.organizer_id,
+                    '活动审核结果', organizer_notice,
+                    'activity_audit_result', activity.id
+                )
+            # 拒绝时不需要通知已报名用户（活动未变更）
 
             session.flush()
-
-            NotificationService.create_notification(
-                session, 'organizer', activity.organizer_id,
-                '活动审核结果', notice_content,
-                'activity_audit_result', activity.id
-            )
-
             return {'activity_id': activity.id, 'new_status': new_status}
 
     @staticmethod
@@ -625,16 +706,16 @@ class ActivityService:
             for (user_id,) in registered_users:
                 NotificationService.create_notification(
                     session, 'user', user_id,
-                    'Activity Removed',
-                    f'The activity {activity_name} has been taken down by admin. Reason: {reason}',
+                    '活动下架',
+                    f'你的活动{activity_name} 被管理员下架了。原因是 {reason}',
                     'activity_audit_result', activity_id
                 )
         
             # 通知组织者
             NotificationService.create_notification(
                 session, 'organizer', activity.organizer_id,
-                'Activity Removed',
-                f'Your activity {activity_name} was removed. Reason: {reason}',
+                '活动下架',
+                f'你的活动 {activity_name} 被管理员下架了。原因是 {reason}',
                 'activity_audit_result', activity_id
             )
         

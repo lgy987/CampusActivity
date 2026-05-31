@@ -100,16 +100,34 @@ import { createActivity, updateActivity, deleteActivity, submitActivity, getActi
 import { showApiError } from '@/api/request'
 import OrganizerSidebar from '@/components/layout/OrganizerSidebar.vue'
 
-// 辅助函数：将后端时间格式转换为 datetime-local 格式
+// 辅助函数：将后端 UTC 时间格式转换为 datetime-local 格式（本地时间）
 const toDatetimeLocal = (dateStr: string): string => {
   if (!dateStr) return ''
-  return dateStr.replace(' ', 'T').slice(0, 16)
+  // 将 UTC 时间字符串转换为 Date 对象
+  const date = new Date(dateStr)
+  if (isNaN(date.getTime())) return ''
+  
+  // 获取本地时间的年月日时分
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  
+  return `${year}-${month}-${day}T${hours}:${minutes}`
 }
 
-// 辅助函数：将 datetime-local 格式转换为后端格式
+// 辅助函数：将 datetime-local 格式转换为 UTC 后端格式
 const toBackendDateTime = (localStr: string): string => {
   if (!localStr) return ''
-  return localStr.replace('T', ' ') + ':00'
+  // 将本地时间转换为 UTC 时间
+  const date = new Date(localStr)
+  const year = date.getUTCFullYear()
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(date.getUTCDate()).padStart(2, '0')
+  const hours = String(date.getUTCHours()).padStart(2, '0')
+  const minutes = String(date.getUTCMinutes()).padStart(2, '0')
+  return `${year}-${month}-${day} ${hours}:${minutes}:00`
 }
 
 const router = useRouter()

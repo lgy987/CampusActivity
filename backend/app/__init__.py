@@ -1,11 +1,12 @@
 from flask import Flask
 from config import get_config
 from app.common.errors import register_error_handlers
-
+from app.task.scheduler import start_scheduler
 
 def create_app(config_object=None):
     app = Flask(__name__)
     app.config.from_object(config_object or get_config())
+    start_scheduler()
 
     from app.api import (
         auth_bp,

@@ -5,7 +5,6 @@ from app.common.errors import BusinessError
 from app.common.serializers import dt
 from app.services.notification_service import NotificationService
 from models import Activity, Registration, User, Checkin
-from threading import Timer
 
 class RegistrationService:
     """报名服务"""
@@ -18,14 +17,42 @@ class RegistrationService:
 
     @staticmethod
     def _active_count(session, activity_id):
+        """计算有效报名人数（考虑延迟释放）"""
+        now = datetime.utcnow()
+    
+        # 有效报名：registered/re_registered + 未过期的 cancelled
         return session.query(Registration).filter(
-            Registration.activity_id == activity_id,
-            Registration.status.in_(RegistrationService.ACTIVE_STATUSES)
+        Registration.activity_id == activity_id,
+        (
+            (Registration.status.in_(RegistrationService.ACTIVE_STATUSES)) |
+            ((Registration.status == 'cancelled') & (Registration.slot_release_at > now))
+        )
         ).count()
 
     @staticmethod
     def _refresh_participants(session, activity):
-        activity.current_participants = RegistrationService._active_count(session, activity.id)
+        """刷新参与者数量，考虑延迟释放"""
+        now = datetime.utcnow()
+    
+        # 处理已过期的取消报名（释放名额）
+        expired_regs = session.query(Registration).filter(
+            Registration.activity_id == activity.id,
+            Registration.status == 'cancelled',
+            Registration.slot_release_at <= now
+        ).all()
+    
+        for reg in expired_regs:
+            reg.slot_release_at = None
+            # 注意：不改变 status，保持 cancelled 状态用于记录
+        # 重新计算有效报名数
+        active_count = session.query(Registration).filter(
+        Registration.activity_id == activity.id,
+        (
+            (Registration.status.in_(RegistrationService.ACTIVE_STATUSES)) |
+            ((Registration.status == 'cancelled') & (Registration.slot_release_at > now))
+        )
+    ).count()
+        activity.current_participants = active_count
 
     @staticmethod
     def _remaining_slots(session, activity):
@@ -41,7 +68,7 @@ class RegistrationService:
             activity = session.get(Activity, activity_id)
             if not activity:
                 raise BusinessError('活动不存在', code=404, status_code=404)
-            if activity.status != 'open':
+            if activity.status not in ('open', 'edit_pending'):
                 raise BusinessError('当前活动不可报名')
             if now > activity.registration_deadline:
                 raise BusinessError('报名已截止')
@@ -123,22 +150,6 @@ class RegistrationService:
                 f'你取消了对 {activity.name} 的报名。',
                 'registration_result', activity.id
             )
-
-            def release_slot():
-                with db_session() as bg_session:
-                    bg_activity = bg_session.get(Activity, activity_id)
-                    if bg_activity:
-                        # 重新计算报名人数
-                        active_count = bg_session.query(Registration).filter(
-                            Registration.activity_id == activity_id,
-                            Registration.status.in_(RegistrationService.ACTIVE_STATUSES)
-                        ).count()
-                        bg_activity.current_participants = active_count
-                        bg_session.commit()
-        
-            timer = Timer(120.0, release_slot)  # 2分钟后执行
-            timer.daemon = True
-            timer.start()
         return {'release_time': dt(release_time)}
 
     @staticmethod
@@ -146,17 +157,44 @@ class RegistrationService:
         """获取我的报名列表"""
         page = max(int(params.get('page', 1)), 1)
         page_size = min(max(int(params.get('page_size', 20)), 1), 100)
+        activity_name = params.get('name', '').strip()
+        activity_id = params.get('activity_id')
+        category_id = params.get('category_id')
+        start_date = params.get('start_date')
+        campus = params.get('campus', '').strip()
 
         with db_session() as session:
             query = session.query(Registration).join(
                 Activity, Registration.activity_id == Activity.id
             ).filter(
                 Registration.user_id == user_id
-            ).order_by(Registration.registration_time.desc())
+            )
+            query = query.filter(Registration.status.in_(('registered', 're_registered')))
+            if activity_name:
+                query = query.filter(Activity.name.contains(activity_name))
+            if activity_id:
+                try:
+                    query = query.filter(Activity.id == int(activity_id))
+                except ValueError:
+                    pass
+            if category_id:
+                try:
+                    query = query.filter(Activity.category_id == int(category_id))
+                except ValueError:
+                    pass
+            if start_date:
+                from datetime import datetime
+                try:
+                    start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
+                except ValueError:
+                    pass
+                query = query.filter(Activity.start_time >= start_date_obj)
+            if campus:
+                query = query.filter(Activity.campus == campus)
 
+            query = query.order_by(Registration.registration_time.desc())
             total = query.count()
             rows = query.offset((page - 1) * page_size).limit(page_size).all()
-
             data = []
             for row in rows:
                 checkin = session.query(Checkin).filter(
@@ -193,22 +231,22 @@ class RegistrationService:
 
             query = session.query(Registration).join(
                 User, Registration.user_id == User.id
-            ).filter(Registration.activity_id == activity_id)
+            ).filter(
+                Registration.activity_id == activity_id,
+                Registration.status.in_(('registered', 're_registered'))  
+            )
 
             # 筛选
             for field in ['gender', 'college', 'grade', 'major']:
                 value = params.get(field)
                 if value:
                     query = query.filter(getattr(User, field) == value)
-            status = params.get('status')
-            if status:
-                query = query.filter(Registration.status == status)
 
             total = query.count()
             all_rows = query.all()
 
             # 统计
-            active_rows = [r for r in all_rows if r.status in RegistrationService.ACTIVE_STATUSES]
+            active_rows = all_rows
             active_user_ids = [r.user_id for r in active_rows]
             total_checked = session.query(Checkin).filter(
                 Checkin.activity_id == activity_id,
@@ -309,3 +347,4 @@ class RegistrationService:
                 'by_grade': dict(Counter(r.user.grade for r in active_rows)),
                 'by_major': dict(Counter(r.user.major for r in active_rows))
             }
+        

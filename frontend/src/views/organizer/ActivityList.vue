@@ -88,7 +88,7 @@
                 <tr v-for="act in activities" :key="act.id" class="hover:bg-gray-50 cursor-pointer" @dblclick="goToDetail(act.id)">
                   <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ act.title }}</td>
                   <td class="px-6 py-4 text-sm text-gray-500">{{ act.categoryName }}</td>
-                  <td class="px-6 py-4 text-sm text-gray-500">{{ act.startTime ? act.startTime.replace('T', ' ').slice(0, 19) : '-' }}</td>
+                  <td class="px-6 py-4 text-sm text-gray-500">{{ formatDateTime(act.startTime) }}</td>
                   <td class="px-6 py-4 text-sm text-gray-500">{{ act.campus }}</td>
                   <td class="px-6 py-4 text-sm text-gray-500">{{ act.location }}</td>
                   <td class="px-6 py-4"><span class="px-2 py-1 rounded-full text-xs font-medium" :class="statusColorClass(act.status)">{{ statusText(act.status) }}</span></td>
@@ -118,6 +118,7 @@ import { getMyActivities, getCategories } from '@/api/organizer'
 import { useUserStore } from '@/stores/user'
 import { showApiError } from '@/api/request'
 import OrganizerSidebar from '@/components/layout/OrganizerSidebar.vue'
+import { formatDateTime } from '@/utils'
 
 const router = useRouter()
 const userStore = useUserStore()

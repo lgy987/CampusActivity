@@ -21,13 +21,13 @@
             <div><label class="block text-sm font-medium text-gray-700">活动名称</label><input type="text" v-model="activity.name" class="w-full border rounded-lg px-3 py-2 bg-gray-50" readonly></div>
             <div><label class="block text-sm font-medium text-gray-700">分类</label><input type="text" v-model="activity.category_name" class="w-full border rounded-lg px-3 py-2 bg-gray-50" readonly></div>
             <div><label class="block text-sm font-medium text-gray-700">组织者</label><input type="text" v-model="activity.organizer_name" class="w-full border rounded-lg px-3 py-2 bg-gray-50" readonly></div>
-            <div><label class="block text-sm font-medium text-gray-700">开始时间</label><input type="text" v-model="activity.start_time" class="w-full border rounded-lg px-3 py-2 bg-gray-50" readonly></div>
-            <div><label class="block text-sm font-medium text-gray-700">结束时间</label><input type="text" v-model="activity.end_time" class="w-full border rounded-lg px-3 py-2 bg-gray-50" readonly></div>
+            <div><label class="block text-sm font-medium text-gray-700">开始时间</label><input type="text" :value="formatDateTime(activity.start_time)" class="w-full border rounded-lg px-3 py-2 bg-gray-50" readonly></div>
+            <div><label class="block text-sm font-medium text-gray-700">结束时间</label><input type="text" :value="formatDateTime(activity.end_time)" class="w-full border rounded-lg px-3 py-2 bg-gray-50" readonly></div>
             <div><label class="block text-sm font-medium text-gray-700">校区</label><input type="text" v-model="activity.campus" class="w-full border rounded-lg px-3 py-2 bg-gray-50" readonly></div>
             <div><label class="block text-sm font-medium text-gray-700">地点</label><input type="text" v-model="activity.location" class="w-full border rounded-lg px-3 py-2 bg-gray-50" readonly></div>
             <div><label class="block text-sm font-medium text-gray-700">人数上限</label><input type="text" v-model="activity.max_participants" class="w-full border rounded-lg px-3 py-2 bg-gray-50" readonly></div>
-            <div><label class="block text-sm font-medium text-gray-700">报名截止时间</label><input type="text" v-model="activity.registration_deadline" class="w-full border rounded-lg px-3 py-2 bg-gray-50" readonly></div>
-            <div><label class="block text-sm font-medium text-gray-700">取消报名截止时间</label><input type="text" v-model="activity.cancel_deadline" class="w-full border rounded-lg px-3 py-2 bg-gray-50" readonly></div>
+            <div><label class="block text-sm font-medium text-gray-700">报名截止时间</label><input type="text" :value="formatDateTime(activity.registration_deadline)" class="w-full border rounded-lg px-3 py-2 bg-gray-50" readonly></div>
+            <div><label class="block text-sm font-medium text-gray-700">取消报名截止时间</label><input type="text" :value="formatDateTime(activity.cancel_deadline)" class="w-full border rounded-lg px-3 py-2 bg-gray-50" readonly></div>
             <div><label class="block text-sm font-medium text-gray-700">报名人数</label><input type="text" v-model="activity.current_participants" class="w-full border rounded-lg px-3 py-2 bg-gray-50" readonly></div>
             <div><label class="block text-sm font-medium text-gray-700">签到人数</label><input type="text" v-model="activity.checked_in_count" class="w-full border rounded-lg px-3 py-2 bg-gray-50" readonly></div>
             <div class="md:col-span-2"><label class="block text-sm font-medium text-gray-700">活动简介</label><textarea v-model="activity.description" rows="3" class="w-full border rounded-lg px-3 py-2 bg-gray-50" readonly></textarea></div>
@@ -66,6 +66,7 @@ import AppButton from '@/components/common/AppButton.vue'
 import AppDialog from '@/components/layout/AppDialog.vue'
 import { getActivityDetail, reviewActivity, removeActivity } from '@/api/admin'
 import { showApiError } from '@/api/request'
+import { formatDateTime } from '@/utils'
 
 const router = useRouter()
 const route = useRoute()
@@ -90,7 +91,12 @@ const activity = reactive({
   checked_in_count: 0
 })
 
-const isActivityStarted = computed(() => new Date(activity.start_time) <= new Date())
+// 判断活动是否已开始
+const isActivityStarted = computed(() => {
+  if (!activity.start_time) return false
+  const startDate = new Date(activity.start_time)
+  return startDate <= new Date()
+})
 
 const statusText = (status: string) => {
   const map: Record<string, string> = { 
@@ -104,6 +110,7 @@ const statusText = (status: string) => {
   }
   return map[status] || status
 }
+
 const statusColorClass = (status: string) => {
   const map: Record<string, string> = { 
     pending: 'bg-yellow-100 text-yellow-700',
@@ -111,7 +118,6 @@ const statusColorClass = (status: string) => {
     open: 'bg-green-100 text-green-700',
     ongoing: 'bg-blue-100 text-blue-700',
     ended: 'bg-gray-100 text-gray-700',
-    approved: 'bg-green-100 text-green-700', 
     rejected: 'bg-red-100 text-red-700', 
     removed: 'bg-gray-100 text-gray-700' 
   }
@@ -150,31 +156,49 @@ const approve = async () => {
     await reviewActivity(activityId, 'approve')
     alert('审核通过')
     router.push('/admin/audit')
-  } catch (e) { showApiError(e, '审核失败') }
+  } catch (e) { 
+    showApiError(e, '审核失败') 
+  }
 }
 
 const rejectModalVisible = ref(false)
 const rejectReason = ref('')
-const openRejectModal = () => { rejectReason.value = ''; rejectModalVisible.value = true }
+const openRejectModal = () => { 
+  rejectReason.value = '' 
+  rejectModalVisible.value = true 
+}
 const confirmReject = async () => {
-  if (!rejectReason.value.trim()) { alert('请填写拒绝理由'); return }
+  if (!rejectReason.value.trim()) { 
+    alert('请填写拒绝理由')
+    return 
+  }
   try {
     await reviewActivity(activityId, 'reject', rejectReason.value)
     alert('已拒绝')
     router.push('/admin/audit')
-  } catch (e) { showApiError(e, '拒绝失败') }
+  } catch (e) { 
+    showApiError(e, '拒绝失败') 
+  }
 }
 
 const removeModalVisible = ref(false)
 const removeReason = ref('')
-const openRemoveModal = () => { removeReason.value = ''; removeModalVisible.value = true }
+const openRemoveModal = () => { 
+  removeReason.value = '' 
+  removeModalVisible.value = true 
+}
 const confirmRemove = async () => {
-  if (!removeReason.value.trim()) { alert('请填写下架理由'); return }
+  if (!removeReason.value.trim()) { 
+    alert('请填写下架理由')
+    return 
+  }
   try {
     await removeActivity(activityId, removeReason.value)
     alert('活动已下架')
     router.push('/admin/audit')
-  } catch (e) { showApiError(e, '下架失败') }
+  } catch (e) { 
+    showApiError(e, '下架失败') 
+  }
 }
 
 const goBack = () => router.back()

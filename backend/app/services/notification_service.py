@@ -95,10 +95,8 @@ class NotificationService:
             raise BusinessError('标题和内容不能为空', code=400)
         if len(title) > 50:
             raise BusinessError('标题不能超过50字符', code=400)
-
-        start = start_time and NotificationService._parse_datetime(start_time) or datetime.utcnow()
-        end = end_time and NotificationService._parse_datetime(end_time) or (start + timedelta(days=30))
-
+        start = start_time and datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S') or datetime.utcnow()
+        end = end_time and datetime.strptime(end_time, '%Y-%m-%d %H:%M:%S') or (start + timedelta(days=30))
         if end <= start:
             raise BusinessError('公告结束时间必须晚于开始时间', code=400)
 
@@ -114,16 +112,13 @@ class NotificationService:
             session.flush()
             return {'announcement_id': announcement.id}
 
+
     @staticmethod
     def list_announcements():
-        """获取系统公告"""
-        current_time = datetime.utcnow()
+        """获取所有系统公告（管理员用，不过滤有效期）"""
         with db_session() as session:
-            rows = session.query(Announcement).filter(
-                Announcement.start_time <= current_time,
-                Announcement.end_time >= current_time
-            ).order_by(Announcement.created_at.desc()).all()
-
+            rows = session.query(Announcement).order_by(Announcement.created_at.desc()).all()
+        
             return [{
                 'announcement_id': row.id,
                 'title': row.title,
@@ -131,7 +126,24 @@ class NotificationService:
                 'start_time': dt(row.start_time),
                 'end_time': dt(row.end_time)
             } for row in rows]
-
+        
+    @staticmethod
+    def list_valid_announcements():
+        """获取有效期内的系统公告（普通用户用）"""
+        current_time = datetime.utcnow()
+        with db_session() as session:
+            rows = session.query(Announcement).filter(
+                Announcement.start_time <= current_time,
+                Announcement.end_time >= current_time
+            ).order_by(Announcement.created_at.desc()).all()
+            return [{
+                'announcement_id': row.id,
+                'title': row.title,
+                'content': row.content,
+                'start_time': dt(row.start_time),
+                'end_time': dt(row.end_time)
+            } for row in rows]
+        
     @staticmethod
     def delete_announcement(announcement_id):
         """删除公告"""

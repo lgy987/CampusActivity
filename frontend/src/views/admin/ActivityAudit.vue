@@ -28,7 +28,6 @@
             <label class="block text-xs font-medium text-gray-600 mb-1">开始时间(起)</label>
             <input type="date" v-model="filters.startDateFrom" class="border rounded-lg px-3 py-2 text-sm w-36 text-gray-900">
           </div>
-          <!-- 已移除“开始时间(止)”输入框 -->
           <div class="flex gap-3">
             <button @click="applyFilters" class="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium shadow-sm hover:bg-blue-700">筛选</button>
             <button @click="resetFilters" class="px-5 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">重置</button>
@@ -54,7 +53,7 @@
                   <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ act.name }}</td>
                   <td class="px-6 py-4 text-sm text-gray-500">{{ act.organizer_name }}</td>
                   <td class="px-6 py-4 text-sm text-gray-500">{{ act.category_name }}</td>
-                  <td class="px-6 py-4 text-sm text-gray-500">{{ act.start_time ? act.start_time.replace('T', ' ').slice(0, 19) : '-' }}</td>
+                  <td class="px-6 py-4 text-sm text-gray-500">{{ formatDateTime(act.start_time) }}</td>
                   <td class="px-6 py-4 text-sm text-gray-500">{{ act.campus }}</td>
                   <td class="px-6 py-4"><span class="px-2 py-1 rounded-full text-xs font-medium" :class="statusColorClass(act.status)">{{ statusText(act.status) }}</span></td>
                 </tr>
@@ -79,6 +78,7 @@ import { useRouter } from 'vue-router'
 import AdminSidebar from '@/components/layout/AdminSidebar.vue'
 import { getAdminActivities, getCategories } from '@/api/admin'
 import { showApiError } from '@/api/request'
+import { formatDateTime } from '@/utils'
 
 const router = useRouter()
 const loading = ref(false)
@@ -91,7 +91,6 @@ const filters = reactive({
   status: 'pending',
   categoryId: '',
   startDateFrom: '',
-  // startDateTo 已移除
 })
 
 const statusText = (status: string) => {
@@ -106,6 +105,7 @@ const statusText = (status: string) => {
   }
   return map[status] || status
 }
+
 const statusColorClass = (status: string) => {
   const map: Record<string, string> = { 
     pending: 'bg-yellow-100 text-yellow-700',
@@ -113,7 +113,6 @@ const statusColorClass = (status: string) => {
     open: 'bg-green-100 text-green-700',
     ongoing: 'bg-blue-100 text-blue-700',
     ended: 'bg-gray-100 text-gray-700',
-    approved: 'bg-green-100 text-green-700', 
     rejected: 'bg-red-100 text-red-700', 
     removed: 'bg-gray-100 text-gray-700' 
   }
@@ -125,14 +124,12 @@ const fetchCategories = async () => {
     const data = await getCategories()
     const flat: { id: number; name: string; level: number }[] = []
     data.forEach((cat: any) => {
-      // 添加一级分类
       flat.push({ id: cat.id, name: cat.name, level: 1 })
-      // 添加二级分类（带缩进标识）
       if (cat.children && cat.children.length) {
         cat.children.forEach((child: any) => {
           flat.push({ 
             id: child.id, 
-            name: `\u00A0\u00A0\u00A0\u00A0${child.name}`, // 添加缩进，区分层级
+            name: `\u00A0\u00A0\u00A0\u00A0${child.name}`,
             level: 2 
           })
         })  
@@ -143,7 +140,6 @@ const fetchCategories = async () => {
     showApiError(e, '获取分类失败')
   }
 }
-
 
 const fetchActivities = async () => {
   loading.value = true
@@ -158,24 +154,34 @@ const fetchActivities = async () => {
       category_id: filters.categoryId ? Number(filters.categoryId) : undefined,
       start_date: filters.startDateFrom || undefined,
     }
-    console.log('请求参数:', params)  
     const data = await getAdminActivities(params)
-    console.log('完整返回数据:', data)  // 调试日志
     activities.value = data.list || []
     const total = data.total || activities.value.length
     totalPages.value = Math.ceil(total / pageSize)
-  } catch (e) { showApiError(e, '获取审核列表失败') } finally { loading.value = false }
+  } catch (e) { 
+    showApiError(e, '获取审核列表失败') 
+  } finally { 
+    loading.value = false 
+  }
 }
 
-const applyFilters = () => { currentPage.value = 1; fetchActivities() }
+const applyFilters = () => { 
+  currentPage.value = 1
+  fetchActivities() 
+}
+
 const resetFilters = () => {
   filters.status = 'pending'
   filters.categoryId = ''
   filters.startDateFrom = ''
-  // 无需重置 endDate
   applyFilters()
 }
-const goToPage = (page: number) => { currentPage.value = page; fetchActivities() }
+
+const goToPage = (page: number) => { 
+  currentPage.value = page
+  fetchActivities() 
+}
+
 const goToDetail = (id: number) => router.push(`/admin/audit/${id}`)
 
 onMounted(() => {

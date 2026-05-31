@@ -89,12 +89,36 @@ const form = reactive({
 // 转换 datetime-local 值为 YYYY-MM-DD HH:MM:SS
 const convertToDateTime = (localValue: string): string => {
   if (!localValue) return ''
-  return localValue.replace('T', ' ') + ':00'
+  
+  console.log('convertToDateTime 输入:', localValue)
+  const date = new Date(localValue)
+  console.log('解析后的 Date:', date)
+  
+  const year = date.getUTCFullYear()
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(date.getUTCDate()).padStart(2, '0')
+  const hours = String(date.getUTCHours()).padStart(2, '0')
+  const minutes = String(date.getUTCMinutes()).padStart(2, '0')
+  const seconds = String(date.getUTCSeconds()).padStart(2, '0')
+  
+  const result = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+  
+  return result
 }
 
 const formatDateTime = (dateStr: string) => {
   if (!dateStr) return '-'
-  return dateStr.replace(' ', 'T').slice(0, 16)
+  const date = new Date(dateStr)
+  if (isNaN(date.getTime())) return dateStr
+  
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  
+  const result = `${year}-${month}-${day} ${hours}:${minutes}`
+  return result
 }
 
 const openCreateModal = () => {
@@ -112,9 +136,9 @@ const openEditModal = (ann: any) => {
   editingId.value = ann.announcement_id
   form.title = ann.title
   form.content = ann.content
-  if (ann.start_time) form.start_time_local = ann.start_time.slice(0, 16).replace(' ', 'T')
+  if (ann.start_time) form.start_time_local = formatDateTime(ann.start_time)
   else form.start_time_local = ''
-  if (ann.end_time) form.end_time_local = ann.end_time.slice(0, 16).replace(' ', 'T')
+  if (ann.end_time) form.end_time_local = formatDateTime(ann.end_time)
   else form.end_time_local = ''
   modalVisible.value = true
 }

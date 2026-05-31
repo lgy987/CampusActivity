@@ -77,21 +77,18 @@ async function fetchList() {
   checkinMethods.value = {}
   try {
     const params = buildQueryParams()
-    const now = Date.now()
 
     if (tab.value === 'past') {
       const [regData, checkinData] = await Promise.all([
-        getMyRegistrations(params as Parameters<typeof getMyRegistrations>[0]),
-        getMyCheckins(params as Parameters<typeof getMyCheckins>[0]),
+        getMyRegistrations(params),
+        getMyCheckins(params),
       ])
       const checkinMap = new Map(checkinData.list.map((c) => [c.activity_id, c]))
       checkinMethods.value = Object.fromEntries(
         checkinData.list.map((c) => [c.activity_id, c.checkin_method]),
       )
-      let items = regData.list.filter(
-        (r) => new Date(r.end_time.replace(/-/g, '/')).getTime() <= now,
-      )
-      list.value = items.map((r) => {
+      // ✅ 不过滤时间
+      list.value = regData.list.map((r) => {
         const c = checkinMap.get(r.activity_id)
         if (!c) return r
         return {
@@ -102,10 +99,10 @@ async function fetchList() {
       })
       total.value = regData.total
     } else {
-      const data = await getMyRegistrations(params as Parameters<typeof getMyRegistrations>[0])
-      list.value = data.list.filter(
-        (r) => new Date(r.end_time.replace(/-/g, '/')).getTime() > now,
-      )
+      const data = await getMyRegistrations(params)
+      console.log('返回数据:', data)
+      // ✅ 不过滤时间，直接显示所有报名记录
+      list.value = data.list
       total.value = data.total
     }
   } catch (e) {
@@ -114,7 +111,6 @@ async function fetchList() {
     loading.value = false
   }
 }
-
 function checkinMethodLabel(activityId: number) {
   const m = checkinMethods.value[activityId]
   if (!m) return ''

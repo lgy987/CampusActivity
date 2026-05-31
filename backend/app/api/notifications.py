@@ -42,8 +42,18 @@ def create_announcement():
 
 @bp.get('/announcements')
 def list_announcements():
-    """获取系统公告 """
-    result = NotificationService.list_announcements()
+    """获取系统公告（根据角色返回不同数据）"""
+    # 获取当前用户信息（可选，未登录也可以）
+    from app.api.deps import get_current_user
+    role, user_id = get_current_user()
+    
+    if role == 'admin':
+        # 管理员：返回所有公告
+        result = NotificationService.list_announcements()
+    else:
+        # 普通用户或未登录用户：只返回有效期内的公告
+        result = NotificationService.list_valid_announcements()
+    
     return success(result)
 
 

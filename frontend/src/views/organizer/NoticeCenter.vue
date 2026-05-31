@@ -18,7 +18,7 @@
             <div class="space-y-4">
               <div v-for="ann in announcements" :key="ann.announcement_id" class="border-b pb-3">
                 <h3 class="font-semibold text-gray-900">{{ ann.title }}</h3>
-                <p class="text-xs text-gray-400 mt-1">{{ ann.start_time ? ann.start_time.replace('T', ' ').slice(0, 19) : '-' }}</p>
+                <p class="text-xs text-gray-400 mt-1">{{ formatDateTime(ann.start_time) }}</p>
                 <p class="text-sm text-gray-600 mt-1">{{ ann.content }}</p>
               </div>
               <div v-if="announcements.length === 0 && !loadingAnnouncement" class="text-center text-gray-400 py-8">暂无公告</div>
@@ -36,7 +36,7 @@
                 <div class="flex justify-between items-start">
                   <div>
                     <div class="font-semibold text-gray-900">{{ msg.title }}</div>
-                    <div class="text-xs text-gray-400 mt-1">{{ msg.created_at ? msg.created_at.replace('T', ' ').slice(0, 19) : '-' }}</div>
+                    <div class="text-xs text-gray-400 mt-1">{{ formatDateTime(msg.created_at) }}</div>
                     <div class="text-sm text-gray-700 mt-1">{{ msg.content }}</div>
                   </div>
                   <button v-if="!msg.is_read" @click="markAsRead(msg.notification_id)" class="text-blue-500 text-xs hover:underline">标记已读</button>
@@ -65,7 +65,7 @@ import AppCard from '@/components/common/AppCard.vue'
 import { getNotifications, markNotificationRead, getAnnouncements } from '@/api/notifications'
 import { showApiError } from '@/api/request'
 import OrganizerSidebar from '@/components/layout/OrganizerSidebar.vue'
-
+import { formatDateTime } from '@/utils'
 const router = useRouter()
 const activeTab = ref<'announcement' | 'message'>('announcement')
 const loadingAnnouncement = ref(false)

@@ -13,7 +13,7 @@ import { Search } from 'lucide-vue-next'
 
 const router = useRouter()
 
-const statusTab = ref('open')
+const statusTab = ref('open,edit_pending')
 const activities = ref<ActivityListItem[]>([])
 const categories = ref<CategoryNode[]>([])
 const total = ref(0)
