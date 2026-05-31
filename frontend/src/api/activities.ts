@@ -1,4 +1,5 @@
-import { apiGet } from './request'
+// src/api/organizer.ts
+import { apiGet, apiPost, apiPut, apiDelete } from './request'
 import type { ActivityDetail, ActivityListItem, CategoryNode, PaginatedList } from '@/types/api'
 
 export interface ActivityQuery {
@@ -16,6 +17,7 @@ export function getActivities(params: ActivityQuery) {
   return apiGet<PaginatedList<ActivityListItem>>('/activities', params as Record<string, unknown>)
 }
 
+
 export function getActivityDetail(id: number) {
   return apiGet<ActivityDetail>(`/activities/${id}`)
 }
@@ -23,3 +25,4 @@ export function getActivityDetail(id: number) {
 export function getCategories() {
   return apiGet<CategoryNode[]>('/categories')
 }
+

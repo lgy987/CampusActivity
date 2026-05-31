@@ -11,13 +11,14 @@ export function updateProfile(data: Partial<UserProfile>) {
 
 export function uploadAvatar(file: File) {
   const form = new FormData()
-  form.append('avatarFile', file)
+  form.append('avatar', file)
   return apiUpload<{ avatar_url: string }>('/user/avatar', form)
+
 }
 
 /** 文档 3.4：POST /user/reset-password */
 export function resetPassword(payload: {
-  token: string
+  old_password: string
   new_password: string
   confirm_password: string
 }) {

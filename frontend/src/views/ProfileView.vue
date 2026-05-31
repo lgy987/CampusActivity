@@ -33,7 +33,11 @@ onMounted(loadProfile)
 async function loadProfile() {
   loading.value = true
   try {
-    profile.value = await getProfile()
+    const data = await getProfile()
+   profile.value = {
+      ...data,
+      phone: data.phone || '',  // null 或 undefined 都转为空字符串
+    }
   } catch (e) {
     showApiError(e)
   } finally {
@@ -54,7 +58,9 @@ async function handleAvatarChange(e: Event) {
 }
 
 async function handleSave() {
-  if (!profile.value || !isPhone(profile.value.phone ?? '')) {
+  if (!profile.value) return
+  const phone = profile.value.phone?.trim()
+  if (phone && !isPhone(phone)) {
     toast.error('手机号须为11位')
     return
   }
@@ -66,7 +72,7 @@ async function handleSave() {
       college: profile.value.college,
       major: profile.value.major,
       grade: profile.value.grade,
-      phone: profile.value.phone,
+      ...(phone ? { phone } : {}),
     })
     toast.success('保存成功')
   } catch (e) {
@@ -92,18 +98,24 @@ async function handleChangePassword() {
   }
   passwordLoading.value = true
   try {
-    const loginData = await login(profile.value.student_id, passwordForm.value.old_password)
+    
     await resetPassword({
-      token: loginData.token,
+      old_password: passwordForm.value.old_password,
       new_password: passwordForm.value.new_password,
       confirm_password: passwordForm.value.confirm_password,
     })
-    auth.setAuth(loginData.token, loginData.user_id)
     toast.success('密码修改成功')
     passwordForm.value = { old_password: '', new_password: '', confirm_password: '' }
     showPasswordDialog.value = false
-  } catch (e) {
-    showApiError(e, '现有密码错误或修改失败')
+  } catch (error: any) {
+    const message = error?.response?.data?.message || error?.message || ''
+    if (message.includes('旧密码') || message.includes('密码错误')) {
+      toast.error('旧密码错误，请重新输入')
+    } else {
+      toast.error(message || '密码修改失败')
+    }
+    // 只清空旧密码输入框
+    passwordForm.value.old_password = ''
   } finally {
     passwordLoading.value = false
   }
@@ -186,16 +198,16 @@ async function handleDeleteAccount() {
             { key: 'username', label: '用户名', editable: true },
             { key: 'phone', label: '联系方式', placeholder: '联系人手机号码', editable: true },
           ]" :key="field.key">
-            <label class="mb-1 block text-sm text-gray-600">{{ field.label }}</label>
-            <div class="relative">
-              <input
-                v-model="(profile as any)[field.key]"
-                :placeholder="field.placeholder"
-                class="w-full rounded border border-gray-300 px-3 py-2 pr-8 text-sm"
-              />
-              <Pencil class="absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
-            </div>
+          <label class="mb-1 block text-sm text-gray-600">{{ field.label }}</label>
+          <div class="relative">
+          <input
+            v-model="(profile as any)[field.key]"
+            :placeholder= "(field as any).placeholder || field.label"
+            class="w-full rounded border border-gray-300 px-3 py-2 pr-8 text-sm"
+          />
+          <Pencil class="absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
           </div>
+        </div>
           <div>
             <label class="mb-1 block text-sm text-gray-600">邮箱</label>
             <input :value="profile.email" disabled class="w-full rounded border bg-gray-50 px-3 py-2 text-sm" />

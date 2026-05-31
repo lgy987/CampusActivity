@@ -38,7 +38,11 @@
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">校区</label>
-              <input type="text" v-model="formData.campus" class="w-full border rounded-lg px-3 py-2">
+              <select v-model="formData.campus" class="w-full border rounded-lg px-3 py-2">
+                <option value="">请选择校区</option>
+                <option value="良乡">良乡</option>
+                <option value="中关村">中关村</option>
+              </select>
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">地点</label>
@@ -46,7 +50,7 @@
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">人数上限</label>
-              <input type="number" v-model="formData.max_participants" class="w-full border rounded-lg px-3 py-2">
+              <input type="number" v-model="formData.max_participants" min="1" class="w-full border rounded-lg px-3 py-2">
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">报名截止时间</label>
@@ -63,13 +67,15 @@
           </div>
 
           <div class="flex flex-wrap gap-3 pt-4 mt-4 border-t">
-            <AppButton variant="blue" @click="handleSave" :disabled="!canSave">保存修改</AppButton>
-            <AppButton variant="blue" @click="handleApplyReview" :disabled="!canApplyReview">申请审核</AppButton>
-            <AppButton variant="blue" @click="goToRegistrations">报名管理</AppButton>
-            <AppButton variant="blue" @click="generateQRCode">生成签到码</AppButton>
-            <AppButton variant="blue" @click="goToSignRecords">签到管理</AppButton>
-            <AppButton variant="blue" @click="goToStats">数据统计</AppButton>
-            <AppButton variant="destructive" @click="handleDelete" :disabled="!canDelete">删除活动</AppButton>
+            <AppButton variant="blue" @click="handleSave" :disabled="saving">保存修改</AppButton>
+            <AppButton variant="blue" @click="handleApplyReview" :disabled="!canApplyReview || submitting">申请审核</AppButton>
+            <template v-if="isEdit && activityId">
+              <AppButton variant="blue" @click="goToRegistrations">报名管理</AppButton>
+              <AppButton variant="blue" @click="generateQRCode">生成签到码</AppButton>
+              <AppButton variant="blue" @click="goToSignRecords">签到管理</AppButton>
+              <AppButton variant="blue" @click="goToStats">数据统计</AppButton>
+              <AppButton variant="destructive" @click="handleDelete" :disabled="!canDelete">删除活动</AppButton>
+            </template>
           </div>
         </AppCard>
 
@@ -85,7 +91,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import AppCard from '@/components/common/AppCard.vue'
 import AppButton from '@/components/common/AppButton.vue'
@@ -94,13 +100,13 @@ import { createActivity, updateActivity, deleteActivity, submitActivity, getActi
 import { showApiError } from '@/api/request'
 import OrganizerSidebar from '@/components/layout/OrganizerSidebar.vue'
 
-// 辅助函数：将后端时间格式（YYYY-MM-DD HH:MM:SS）转换为 datetime-local 格式（YYYY-MM-DDTHH:MM）
+// 辅助函数：将后端时间格式转换为 datetime-local 格式
 const toDatetimeLocal = (dateStr: string): string => {
   if (!dateStr) return ''
   return dateStr.replace(' ', 'T').slice(0, 16)
 }
 
-// 辅助函数：将 datetime-local 格式（YYYY-MM-DDTHH:MM）转换为后端格式（YYYY-MM-DD HH:MM:00）
+// 辅助函数：将 datetime-local 格式转换为后端格式
 const toBackendDateTime = (localStr: string): string => {
   if (!localStr) return ''
   return localStr.replace('T', ' ') + ':00'
@@ -108,8 +114,8 @@ const toBackendDateTime = (localStr: string): string => {
 
 const router = useRouter()
 const route = useRoute()
-const activityId = route.query.id ? Number(route.query.id) : null
-const isEdit = !!activityId
+const activityId = computed(() => route.query.id ? Number(route.query.id) : null)
+const isEdit = computed(() => !!activityId.value)
 
 const formData = reactive({
   name: '',
@@ -123,6 +129,7 @@ const formData = reactive({
   cancel_deadline: '',
   description: ''
 })
+
 const activityData = reactive({
   id: 0,
   status: '',
@@ -130,10 +137,83 @@ const activityData = reactive({
 })
 const categoryOptions = ref<{ value: number; label: string }[]>([])
 
+const isLoadingData = ref(false)
+const isRegistrationManuallyChanged = ref(false)
+const isCancelManuallyChanged = ref(false)
+const isAutoUpdating = ref(false)
+const saving = ref(false)
+const submitting = ref(false)
+
+// 重置表单
+const resetForm = () => {
+  formData.name = ''
+  formData.category_id = undefined
+  formData.start_time = ''
+  formData.end_time = ''
+  formData.campus = ''
+  formData.location = ''
+  formData.max_participants = 0
+  formData.registration_deadline = ''
+  formData.cancel_deadline = ''
+  formData.description = ''
+  activityData.id = 0
+  activityData.status = ''
+  activityData.current_participants = 0
+  isRegistrationManuallyChanged.value = false
+  isCancelManuallyChanged.value = false
+  isAutoUpdating.value = false
+}
+
+// 监听报名截止时间手动修改
+watch(() => formData.registration_deadline, (newVal, oldVal) => {
+  if (isAutoUpdating.value) return
+  if (!isLoadingData.value && oldVal !== undefined && newVal !== oldVal) {
+    isRegistrationManuallyChanged.value = true
+  }
+})
+
+// 监听取消报名截止时间手动修改
+watch(() => formData.cancel_deadline, (newVal, oldVal) => {
+  if (isAutoUpdating.value) return
+  if (!isLoadingData.value && oldVal !== undefined && newVal !== oldVal) {
+    isCancelManuallyChanged.value = true
+  }
+})
+
+// 监听开始时间变化
+watch(() => formData.start_time, (newStartTime) => {
+  if (isLoadingData.value) return
+  if (!newStartTime) return
+  
+  const startDate = new Date(newStartTime)
+  const deadlineDate = new Date(startDate.getTime() - 60 * 60 * 1000)
+  
+  const year = deadlineDate.getFullYear()
+  const month = String(deadlineDate.getMonth() + 1).padStart(2, '0')
+  const day = String(deadlineDate.getDate()).padStart(2, '0')
+  const hours = String(deadlineDate.getHours()).padStart(2, '0')
+  const minutes = String(deadlineDate.getMinutes()).padStart(2, '0')
+  
+  const deadlineStr = `${year}-${month}-${day}T${hours}:${minutes}`
+  
+  isAutoUpdating.value = true
+  
+  if (!isRegistrationManuallyChanged.value) {
+    formData.registration_deadline = deadlineStr
+  }
+  if (!isCancelManuallyChanged.value) {
+    formData.cancel_deadline = deadlineStr
+  }
+  
+  setTimeout(() => {
+    isAutoUpdating.value = false
+  }, 100)
+})
+
 const canSave = computed(() => true)
 // 允许提交审核的状态：草稿、被拒绝、修改待审核
 const canApplyReview = computed(() => 
-  ['draft', 'rejected', 'edit_pending'].includes(activityData.status)
+  ['draft', 'pending', 'rejected', 'edit_pending'].includes(activityData.status)
 )
 const canDelete = computed(() => !['ended', 'removed'].includes(activityData.status))
 
@@ -145,6 +225,7 @@ const statusText = (s: string) => {
   }
   return map[s] || s
 }
+
 const statusColorClass = (s: string) => {
   const map: Record<string, string> = {
     draft: 'bg-gray-100 text-gray-700', pending: 'bg-yellow-100 text-yellow-700',
@@ -158,12 +239,17 @@ const statusColorClass = (s: string) => {
 const fetchCategories = async () => {
   try {
     const data = await getCategories()
-    const flat: any[] = []
+    const flat: { value: number; label: string }[] = []
+    
     data.forEach((cat: any) => {
-      if (cat.children) {
-        cat.children.forEach((child: any) => flat.push({ value: child.id, label: child.name }))
-      } else {
-        flat.push({ value: cat.id, label: cat.name })
+      flat.push({ value: cat.id, label: cat.name })
+      if (cat.children && cat.children.length) {
+        cat.children.forEach((child: any) => {
+          flat.push({ 
+            value: child.id, 
+            label: `\u00A0\u00A0\u00A0\u00A0${child.name}`
+          })
+        })
       }
     })
     categoryOptions.value = flat
@@ -173,15 +259,17 @@ const fetchCategories = async () => {
 }
 
 const fetchActivityDetail = async () => {
-  if (!isEdit) return
+  if (!isEdit.value) return
+  isLoadingData.value = true  
   try {
-    const data = await getActivityDetail(activityId!)
+    const id = activityId.value
+    if (!id) return
+    const data = await getActivityDetail(id)
     activityData.id = data.activity_id
     activityData.status = data.status
     activityData.current_participants = data.current_participants
     formData.name = data.name
     formData.category_id = data.category_id
-    // 转换时间格式
     formData.start_time = toDatetimeLocal(data.start_time)
     formData.end_time = toDatetimeLocal(data.end_time)
     formData.campus = data.campus
@@ -190,64 +278,105 @@ const fetchActivityDetail = async () => {
     formData.registration_deadline = toDatetimeLocal(data.registration_deadline)
     formData.cancel_deadline = toDatetimeLocal(data.cancel_deadline)
     formData.description = data.description
+    // 重置手动修改标志
+    isRegistrationManuallyChanged.value = false
+    isCancelManuallyChanged.value = false
+    isAutoUpdating.value = false
   } catch (e) {
+    console.error('获取活动详情失败:', e)
     showApiError(e, '获取活动详情失败')
+  } finally {
+    isLoadingData.value = false
   }
 }
 
+// 监听路由变化，只重置表单
+watch(activityId, (newId) => {
+  if (!newId) {
+    resetForm()
+  }
+})
+
+// 监听编辑状态和活动ID，加载数据
+watch([isEdit, activityId], async ([edit, id]) => {
+  if (edit && id) {
+    await fetchActivityDetail()
+  }
+}, { immediate: true })
+
 const handleSave = async () => {
+  if (saving.value) return
   if (!formData.name) { alert('请填写活动名称'); return }
   if (!formData.category_id) { alert('请选择分类'); return }
+  if (!formData.start_time) { alert('请选择开始时间'); return }
+  if (!formData.end_time) { alert('请选择结束时间'); return }
+  if (!formData.campus) { alert('请选择校区'); return }
 
-  const payload = {
-    name: formData.name,
-    category_id: formData.category_id,
-    start_time: toBackendDateTime(formData.start_time),
-    end_time: toBackendDateTime(formData.end_time),
-    campus: formData.campus,
-    location: formData.location,
-    max_participants: formData.max_participants,
-    registration_deadline: toBackendDateTime(formData.registration_deadline),
-    cancel_deadline: toBackendDateTime(formData.cancel_deadline),
-    description: formData.description,
-    save_as_draft: true  // 保存为草稿
-  }
-
+  saving.value = true
   try {
-    if (isEdit) {
-      await updateActivity(activityId!, payload)
+    const payload = {
+      name: formData.name,
+      category_id: formData.category_id,
+      start_time: toBackendDateTime(formData.start_time),
+      end_time: toBackendDateTime(formData.end_time),
+      campus: formData.campus,
+      location: formData.location,
+      max_participants: formData.max_participants,
+      registration_deadline: toBackendDateTime(formData.registration_deadline),
+      cancel_deadline: toBackendDateTime(formData.cancel_deadline),
+      description: formData.description,
+      save_as_draft: true
+    }
+
+    if (isEdit.value) {
+      await updateActivity(activityId.value!, payload)
       alert('保存成功')
-      // 关键：保存后重新获取详情，刷新状态（尤其是 status）
       await fetchActivityDetail()
     } else {
       const data = await createActivity(payload)
-      router.push(`/organizer/activity?id=${data.activity_id}`)
+      console.log('创建活动成功:', data)
+      alert('创建成功')
+      router.replace(`/organizer/activity?id=${data.activity_id}`)
+      setTimeout(() => {
+        fetchActivityDetail()
+      }, 100)
     }
   } catch (e: any) {
+    console.error('保存失败:', e)
     if (e.response?.status === 405) {
       alert('活动状态不允许修改（可能已开始或已结束）')
     } else {
-      showApiError(e, isEdit ? '保存失败' : '创建失败')
+      showApiError(e, isEdit.value ? '保存失败' : '创建失败')
     }
+  } finally {
+    saving.value = false
   }
 }
 
 const handleApplyReview = async () => {
-  if (!isEdit) return
+  if (!isEdit.value) {
+    alert('请先保存活动后再提交审核')
+    return
+  }
+  if (submitting.value) return
+  
+  submitting.value = true
   try {
-    await submitActivity(activityId!)
+    await submitActivity(activityId.value!)
     alert('已提交审核')
-    // 提交后重新获取状态，更新按钮状态
     await fetchActivityDetail()
   } catch (e) {
+    console.error('提交审核失败:', e)
     showApiError(e, '提交审核失败')
+  } finally {
+    submitting.value = false
   }
 }
 
 const handleDelete = async () => {
   if (!confirm('确定删除该活动吗？')) return
   try {
-    await deleteActivity(activityId!)
+    await deleteActivity(activityId.value!)
     alert('删除成功')
     router.push('/organizer/activities')
   } catch (e) {
@@ -255,25 +384,29 @@ const handleDelete = async () => {
   }
 }
 
-const goToRegistrations = () => router.push(`/organizer/registrations?activityId=${activityId}`)
-const goToSignRecords = () => router.push(`/organizer/signs?activityId=${activityId}`)
-const goToStats = () => router.push(`/organizer/stats?activityId=${activityId}`)
+const goToRegistrations = () => router.push(`/organizer/registrations?activityId=${activityId.value}`)
+const goToSignRecords = () => router.push(`/organizer/signs?activityId=${activityId.value}`)
+const goToStats = () => router.push(`/organizer/stats?activityId=${activityId.value}`)
+
 const qrDialogVisible = ref(false)
 const qrCode = ref('')
 const generateQRCode = async () => {
-  if (!activityId) return
+  if (!activityId.value) return
   try {
-    const data = await getCheckinCode(activityId)
+    const data = await getCheckinCode(activityId.value)
     qrCode.value = data.checkin_code
     qrDialogVisible.value = true
   } catch (e) {
     showApiError(e, '获取签到码失败')
   }
 }
-const goBack = () => router.back()
+
+// 修改返回函数：直接跳转到列表页
+const goBack = () => {
+  router.push('/organizer/activities')
+}
 
 onMounted(() => {
   fetchCategories()
-  fetchActivityDetail()
 })
 </script>

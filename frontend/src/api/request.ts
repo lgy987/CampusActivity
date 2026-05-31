@@ -60,6 +60,8 @@ export async function apiDelete<T>(url: string, data?: unknown): Promise<T> {
 }
 
 export async function apiUpload<T>(url: string, formData: FormData): Promise<T> {
+  console.log('apiUpload URL:', url)  // 添加这行
+  console.log('apiUpload Data:', formData)  // 添加这行
   const res = await request.post<ApiResponse<T>>(url, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })

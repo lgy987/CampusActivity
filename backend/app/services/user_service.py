@@ -17,6 +17,7 @@ class UserService:
     @staticmethod
     def get_profile(role, user_id):
         """获取当前用户信息"""
+        from flask import url_for
         with db_session() as session:
             if role == 'user':
                 user = session.get(User, user_id)
@@ -29,17 +30,21 @@ class UserService:
                     if effective_count >= level['required_count']:
                         achievement_title = level['title']
 
+                avatar_url = user.avatar
+                if avatar_url and avatar_url.startswith('/'):
+                    avatar_url = url_for('static', filename=avatar_url.replace('/static/', ''), _external=True)
+
                 return {
                     'user_id': user.id,
                     'student_id': user.student_id,
                     'email': user.email,
                     'username': user.username,
-                    'avatar': user.avatar,
+                    'avatar': avatar_url,
                     'gender': user.gender,
                     'college': user.college,
                     'major': user.major,
                     'grade': user.grade,
-                    'phone': user.phone,
+                    'phone': user.phone or '',
                     'status': user.status,
                     'achievement': {
                         'title': achievement_title,
@@ -51,11 +56,16 @@ class UserService:
                 organizer = session.get(Organizer, user_id)
                 if not organizer or organizer.status == 'deleted':
                     raise BusinessError('组织者不存在', code=404, status_code=404)
+                
+                avatar_url = organizer.avatar
+                if avatar_url and avatar_url.startswith('/'):
+                    avatar_url = url_for('static', filename=avatar_url.replace('/static/', ''), _external=True)
+
                 return {
                     'organizer_id': organizer.id,
                     'email': organizer.email,
                     'org_name': organizer.org_name,
-                    'avatar': organizer.avatar,
+                    'avatar': avatar_url,
                     'status': organizer.status,
                     'org_proof_text': organizer.org_proof_text,
                     'org_proof_image': organizer.org_proof_image
@@ -65,12 +75,17 @@ class UserService:
                 admin = session.get(Admin, user_id)
                 if not admin or admin.status == 'deleted':
                     raise BusinessError('管理员不存在', code=404, status_code=404)
+                
+                avatar_url = admin.avatar
+                if avatar_url and avatar_url.startswith('/'):
+                    avatar_url = url_for('static', filename=avatar_url.replace('/static/', ''), _external=True)
+
                 return {
                     'admin_id': admin.id,
                     'admin_no': admin.admin_no,
                     'email': admin.email,
                     'username': admin.username,
-                    'avatar': admin.avatar,
+                    'avatar': avatar_url,
                     'role': admin.role
                 }
 
@@ -139,6 +154,7 @@ class UserService:
         from flask import current_app, url_for
         from pathlib import Path
         from uuid import uuid4
+        import os
 
         # 校验文件
         if not file or not file.filename:
@@ -152,16 +168,35 @@ class UserService:
         # 保存文件
         upload_dir = Path(current_app.root_path) / 'static' / 'avatars'
         upload_dir.mkdir(parents=True, exist_ok=True)
+
+        with db_session() as session:
+            if role == 'user':
+                entity = session.get(User, user_id)
+            elif role == 'organizer':
+                entity = session.get(Organizer, user_id)
+            elif role == 'admin':
+                entity = session.get(Admin, user_id)
+            else:
+                raise BusinessError('无效角色')
+
+            if entity and entity.avatar:
+                # 从 URL 中提取文件名
+                old_filename = entity.avatar.split('/')[-1]
+                old_file_path = upload_dir / old_filename
+                if old_file_path.exists() and old_file_path.is_file():
+                    os.remove(old_file_path)
+
         new_filename = f"{role}_{user_id}_{uuid4().hex}.{ext}"
         file.save(upload_dir / new_filename)
 
-        avatar_url = url_for('static', filename=f'avatars/{new_filename}', _external=False)
+        avatar_url = url_for('static', filename=f'avatars/{new_filename}', _external=True)
         UserService.update_avatar_url(role, user_id, avatar_url)
         return avatar_url
 
     @staticmethod
-    def reset_password(role, user_id, new_password):
+    def reset_password(role, user_id, old_password, new_password):
         """重置密码"""
+        from werkzeug.security import check_password_hash
         with db_session() as session:
             if role == 'user':
                 entity = session.get(User, user_id)
@@ -174,6 +209,9 @@ class UserService:
 
             if not entity or entity.status == 'deleted':
                 raise BusinessError('账号不存在', code=404, status_code=404)
+            
+            if not check_password_hash(entity.password, old_password):
+                raise BusinessError('旧密码错误', code=400, status_code=400)
 
             entity.password = generate_password_hash(new_password)
 
@@ -308,6 +346,7 @@ class UserService:
     def review_organizer(organizer_id, action, reject_reason):
         """审核组织者"""
         with db_session() as session:
+            from app.services.notification_service import NotificationService
             organizer = session.get(Organizer, organizer_id)
             if not organizer or organizer.status == 'deleted':
                 raise BusinessError('组织者不存在', code=404, status_code=404)
@@ -315,10 +354,23 @@ class UserService:
             if action == 'approve':
                 organizer.status = 'approved'
                 organizer.reject_reason = None
+                title = "组织者审核通过"
+                content = f"恭喜！您的组织者账号【{organizer.org_name}】已通过审核，现在可以创建和发布活动了。"
             else:
                 organizer.status = 'rejected'
                 organizer.reject_reason = reject_reason
+                title = "组织者审核未通过"
+                content = f"很遗憾，您的组织者账号【{organizer.org_name}】审核未通过。原因：{reject_reason}"
 
+            NotificationService.create_notification(
+            session,
+            "organizer",
+            organizer_id,
+            title,
+            content,
+            "organizer_audit_result",
+            organizer_id
+            )
             return {'organizer_id': organizer.id, 'status': organizer.status}
 
     @staticmethod

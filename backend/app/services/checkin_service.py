@@ -90,8 +90,8 @@ class CheckinService:
 
             NotificationService.create_notification(
                 session, 'user', user_id,
-                'Check-in Success',
-                f'You checked in for {activity.name}.',
+                '签到成功',
+                f'你已成功签到 {activity.name}。',
                 'checkin_result', activity.id
             )
 
@@ -136,8 +136,8 @@ class CheckinService:
 
             NotificationService.create_notification(
                 session, 'user', user.id,
-                'Manual Check-in Success',
-                f'Organizer completed manual check-in for {activity.name}.',
+                '手动签到成功',
+                f'组织者为 {activity.name} 完成手动签到。',
                 'checkin_result', activity.id
             )
 

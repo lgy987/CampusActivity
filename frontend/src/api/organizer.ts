@@ -69,7 +69,7 @@ export function getMyActivities(params?: {
 
 // 获取单个活动详情（组织者视角，用于编辑）
 export function getActivityDetail(activityId: number) {
-  return apiGet<ActivityDetail>(`/organizer/activities/${activityId}`)
+  return apiGet<ActivityDetail>(`/activities/${activityId}`)
 }
 
 // ==================== 5. 报名管理（组织者） ====================

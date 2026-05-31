@@ -1,6 +1,6 @@
 import { apiGet, apiPost, apiPut, apiDelete } from './request'
 import type { ActivityListItem, CategoryNode, UserProfile } from '@/types/api'
-
+import type { ActivityDetail } from '@/types/api'
 // ==================== 活动管理 ====================
 
 export function getAdminActivities(params?: {
@@ -10,11 +10,11 @@ export function getAdminActivities(params?: {
   category_id?: number
   keyword?: string
 }) {
-  return apiGet<{ items: ActivityListItem[]; total: number }>('/admin/activities', params)
+  return apiGet<{ list: ActivityListItem[]; total: number }>('/admin/activities', params)
 }
 
 export function getActivityDetail(activityId: number) {
-  return apiGet<ActivityListItem>(`/admin/activities/${activityId}`)
+  return apiGet<ActivityDetail>(`/admin/activities/${activityId}`)
 }
 
 export function auditActivity(activityId: number, status: 'approved' | 'rejected', remark?: string) {

@@ -5,7 +5,7 @@ from app.common.errors import BusinessError
 from app.common.serializers import dt
 from app.services.notification_service import NotificationService
 from models import Activity, Registration, User, Checkin
-
+from threading import Timer
 
 class RegistrationService:
     """报名服务"""
@@ -81,14 +81,8 @@ class RegistrationService:
 
             NotificationService.create_notification(
                 session, 'user', user_id,
-                'Registration Success',
-                f'You have registered for {activity.name}.',
-                'registration_result', activity.id
-            )
-            NotificationService.create_notification(
-                session, 'organizer', activity.organizer_id,
-                'New Registration',
-                f'A student registered for {activity.name}.',
+                '报名成功',
+                f'你已成功报名 {activity.name}。',
                 'registration_result', activity.id
             )
 
@@ -123,22 +117,29 @@ class RegistrationService:
             row.slot_release_at = release_time
             session.flush()
 
-            RegistrationService._refresh_participants(session, activity)
-
             NotificationService.create_notification(
                 session, 'user', user_id,
-                'Registration Cancelled',
-                f'You cancelled your registration for {activity.name}.',
-                'registration_result', activity.id
-            )
-            NotificationService.create_notification(
-                session, 'organizer', activity.organizer_id,
-                'Registration Cancelled',
-                f'A student cancelled registration for {activity.name}.',
+                '报名取消',
+                f'你取消了对 {activity.name} 的报名。',
                 'registration_result', activity.id
             )
 
-            return {'release_time': dt(release_time)}
+            def release_slot():
+                with db_session() as bg_session:
+                    bg_activity = bg_session.get(Activity, activity_id)
+                    if bg_activity:
+                        # 重新计算报名人数
+                        active_count = bg_session.query(Registration).filter(
+                            Registration.activity_id == activity_id,
+                            Registration.status.in_(RegistrationService.ACTIVE_STATUSES)
+                        ).count()
+                        bg_activity.current_participants = active_count
+                        bg_session.commit()
+        
+            timer = Timer(120.0, release_slot)  # 2分钟后执行
+            timer.daemon = True
+            timer.start()
+        return {'release_time': dt(release_time)}
 
     @staticmethod
     def get_my_registrations(user_id, params):
@@ -273,8 +274,8 @@ class RegistrationService:
 
             NotificationService.create_notification(
                 session, 'user', row.user_id,
-                'Registration Rejected',
-                f'Your registration for {activity.name} was rejected. Reason: {reason}',
+                '报名拒绝',
+                f'你的ID为{activity.id}名字为{activity.name}的报名被拒绝了。原因: {reason}',
                 'registration_result', activity.id
             )
 

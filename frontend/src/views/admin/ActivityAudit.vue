@@ -95,42 +95,73 @@ const filters = reactive({
 })
 
 const statusText = (status: string) => {
-  const map: Record<string, string> = { pending: '待审核', approved: '已通过', rejected: '已拒绝', removed: '已下架' }
+  const map: Record<string, string> = { 
+    pending: '审核中', 
+    edit_pending: '修改待审核',  
+    open: '已通过',
+    ongoing: '进行中',
+    ended: '已结束',
+    rejected: '已拒绝', 
+    removed: '已下架' 
+  }
   return map[status] || status
 }
 const statusColorClass = (status: string) => {
-  const map: Record<string, string> = { pending: 'bg-yellow-100 text-yellow-700', approved: 'bg-green-100 text-green-700', rejected: 'bg-red-100 text-red-700', removed: 'bg-gray-100 text-gray-700' }
+  const map: Record<string, string> = { 
+    pending: 'bg-yellow-100 text-yellow-700',
+    edit_pending: 'bg-orange-100 text-orange-700',
+    open: 'bg-green-100 text-green-700',
+    ongoing: 'bg-blue-100 text-blue-700',
+    ended: 'bg-gray-100 text-gray-700',
+    approved: 'bg-green-100 text-green-700', 
+    rejected: 'bg-red-100 text-red-700', 
+    removed: 'bg-gray-100 text-gray-700' 
+  }
   return map[status] || 'bg-gray-100'
 }
 
 const fetchCategories = async () => {
   try {
     const data = await getCategories()
-    const flat: any[] = []
+    const flat: { id: number; name: string; level: number }[] = []
     data.forEach((cat: any) => {
-      flat.push({ id: cat.id, name: cat.name })
-      if (cat.children) cat.children.forEach((child: any) => flat.push({ id: child.id, name: child.name }))
-    })
+      // 添加一级分类
+      flat.push({ id: cat.id, name: cat.name, level: 1 })
+      // 添加二级分类（带缩进标识）
+      if (cat.children && cat.children.length) {
+        cat.children.forEach((child: any) => {
+          flat.push({ 
+            id: child.id, 
+            name: `\u00A0\u00A0\u00A0\u00A0${child.name}`, // 添加缩进，区分层级
+            level: 2 
+          })
+        })  
+      }
+    }) 
     categories.value = flat
-  } catch (e) { showApiError(e, '获取分类失败') }
+  } catch (e) {
+    showApiError(e, '获取分类失败')
+  }
 }
+
 
 const fetchActivities = async () => {
   loading.value = true
   try {
     let statusParam = ''
-    if (filters.status === 'pending') statusParam = 'pending'
-    else if (filters.status === 'end') statusParam = 'approved,rejected,removed'
+    if (filters.status === 'pending') statusParam = 'pending,edit_pending'
+    else if (filters.status === 'end') statusParam = 'open,ongoing,ended,rejected,removed'
     const params: any = {
       page: currentPage.value,
       page_size: pageSize,
       status: statusParam || undefined,
       category_id: filters.categoryId ? Number(filters.categoryId) : undefined,
       start_date: filters.startDateFrom || undefined,
-      // 不再传递 end_date
     }
+    console.log('请求参数:', params)  
     const data = await getAdminActivities(params)
-    activities.value = data.items || []
+    console.log('完整返回数据:', data)  // 调试日志
+    activities.value = data.list || []
     const total = data.total || activities.value.length
     totalPages.value = Math.ceil(total / pageSize)
   } catch (e) { showApiError(e, '获取审核列表失败') } finally { loading.value = false }

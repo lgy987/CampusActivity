@@ -1,4 +1,4 @@
-import { apiPost } from './request'
+import { apiPost, apiUpload } from './request'
 import type { LoginData, RegisterData } from '@/types/api'
 
 export interface RegisterPayload {
@@ -11,7 +11,7 @@ export interface RegisterPayload {
   college: string
   major: string
   grade: string
-  phone?: string
+  phone?: string | null
 }
 
 export interface OrganizerRegisterPayload {
@@ -38,6 +38,10 @@ export function registerOrganizer(payload: OrganizerRegisterPayload) {
   return apiPost<{ user_id: number; status: string; token: string }>('/auth/register/organizer', payload)
 }
 
+
+export function uploadOrganizerProof(formData: FormData) {
+  return apiUpload<{ image_url: string }>('/auth/upload-organizer-proof', formData)
+}
 // 退出登录
 export function logout() {
   return apiPost<null>('/auth/logout')}

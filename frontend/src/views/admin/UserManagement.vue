@@ -44,7 +44,6 @@
 
         <!-- 普通用户列表 -->
         <div v-show="activeTab === 'user'">
-          <!-- 普通用户筛选栏 -->
           <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6 flex flex-wrap gap-4 items-end">
             <div>
               <label class="block text-xs font-medium text-gray-600 mb-1">学号</label>
@@ -75,14 +74,15 @@
                   <tr>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">学号</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">学院</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">专业</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">状态</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                   <tr v-for="u in users" :key="u.user_id">
                     <td class="px-6 py-4">{{ u.student_id }}</td>
                     <td class="px-6 py-4">{{ u.college || '—' }}</td>
+                    <td class="px-6 py-4">{{ u.major || '—' }}</td>
                     <td class="px-6 py-4">
                       <span
                         class="px-2 py-1 rounded-full text-xs"
@@ -90,22 +90,6 @@
                       >
                         {{ u.status === 'active' ? '正常' : '禁用' }}
                       </span>
-                    </td>
-                    <td class="px-6 py-4">
-                      <button
-                        v-if="u.status === 'active'"
-                        @click="toggleUserStatus(u, 'disable')"
-                        class="px-3 py-1 bg-red-100 text-red-700 rounded text-sm hover:bg-red-200"
-                      >
-                        禁用
-                      </button>
-                      <button
-                        v-else
-                        @click="toggleUserStatus(u, 'enable')"
-                        class="px-3 py-1 bg-green-100 text-green-700 rounded text-sm hover:bg-green-200"
-                      >
-                        启用
-                      </button>
                     </td>
                   </tr>
                   <tr v-if="!userLoading && users.length === 0">
@@ -223,13 +207,15 @@
               <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                   <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500">用户名</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500">邮箱</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500">操作</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">编号</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">用户名</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">邮箱</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                   <tr v-for="adm in admins" :key="adm.admin_id">
+                    <td class="px-6 py-4">{{ adm.admin_no }}</td>
                     <td class="px-6 py-4">{{ adm.username }}</td>
                     <td class="px-6 py-4">{{ adm.email }}</td>
                     <td class="px-6 py-4">
@@ -244,7 +230,7 @@
                     </td>
                   </tr>
                   <tr v-if="!adminLoading && admins.length === 0">
-                    <td colspan="3" class="text-center py-8 text-gray-500">暂无数据</td>
+                    <td colspan="4" class="text-center py-8 text-gray-500">暂无数据</td>
                   </tr>
                 </tbody>
               </table>
@@ -262,33 +248,80 @@
       :show-confirm="false"
       @cancel="orgModalVisible = false"
     >
-      <div class="space-y-3">
+      <div class="space-y-4 max-h-[70vh] overflow-y-auto p-1">
         <div>
-          <label class="block text-sm font-medium">组织名</label>
+          <label class="block text-sm font-medium text-gray-700">组织名称</label>
           <input type="text" v-model="currentOrg.org_name" class="w-full border rounded px-3 py-2 bg-gray-50" readonly />
         </div>
+        
         <div>
-          <label class="block text-sm font-medium">邮箱</label>
+          <label class="block text-sm font-medium text-gray-700">邮箱</label>
           <input type="text" v-model="currentOrg.email" class="w-full border rounded px-3 py-2 bg-gray-50" readonly />
         </div>
+        
         <div>
-          <label class="block text-sm font-medium">当前状态</label>
-          <span class="ml-2 px-2 py-1 rounded-full text-xs" :class="getOrgStatusClass(currentOrg.status)">
+          <label class="block text-sm font-medium text-gray-700">当前状态</label>
+          <span class="inline-block mt-1 px-2 py-1 rounded-full text-xs" :class="getOrgStatusClass(currentOrg.status)">
             {{ getOrgStatusText(currentOrg.status) }}
           </span>
         </div>
-        <div v-if="currentOrg.status === 'pending'">
-          <label class="block text-sm font-medium">审核操作</label>
-          <div class="flex gap-2 mt-1">
-            <button @click="approveOrganizer" class="px-4 py-2 bg-green-600 text-white rounded">通过</button>
-            <button @click="openRejectOrgModal" class="px-4 py-2 bg-red-600 text-white rounded">拒绝</button>
+
+        <!-- 组织证明文字 -->
+        <div v-if="currentOrg.org_proof_text">
+          <label class="block text-sm font-medium text-gray-700">组织证明</label>
+          <div class="mt-1 p-3 border rounded bg-gray-50 text-sm text-gray-600 whitespace-pre-wrap">
+            {{ currentOrg.org_proof_text }}
           </div>
         </div>
-        <div v-if="showRejectReason">
-          <label class="block text-sm font-medium">拒绝理由</label>
-          <textarea v-model="rejectReason" rows="2" class="w-full border rounded px-3 py-2"></textarea>
-          <button @click="confirmRejectOrganizer" class="mt-2 px-4 py-2 bg-red-600 text-white rounded">确认拒绝</button>
+
+        <!-- 组织证明图片 -->
+        <div v-if="currentOrg.org_proof_image">
+          <label class="block text-sm font-medium text-gray-700">证明图片</label>
+          <div class="mt-1">
+            <img 
+              :src="currentOrg.org_proof_image" 
+              alt="组织证明图片" 
+              class="max-w-full max-h-48 rounded border object-contain cursor-pointer"
+              @click="previewImage(currentOrg.org_proof_image)"
+            />
+            <p class="text-xs text-gray-400 mt-1">点击图片可放大查看</p>
+          </div>
         </div>
+
+        <!-- 审核操作（仅待审核状态显示） -->
+        <div v-if="currentOrg.status === 'pending'" class="pt-2">
+          <label class="block text-sm font-medium text-gray-700 mb-2">审核操作</label>
+          <div class="flex gap-2">
+            <button @click="approveOrganizer" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+              通过
+            </button>
+            <button @click="openRejectOrgModal" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
+              拒绝
+            </button>
+          </div>
+        </div>
+
+        <!-- 拒绝理由输入框 -->
+        <div v-if="showRejectReason">
+          <label class="block text-sm font-medium text-gray-700">拒绝理由</label>
+          <textarea v-model="rejectReason" rows="2" class="w-full border rounded px-3 py-2 mt-1" placeholder="请输入拒绝理由"></textarea>
+          <button @click="confirmRejectOrganizer" class="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
+            确认拒绝
+          </button>
+        </div>
+      </div>
+    </AppDialog>
+
+    <!-- 图片预览弹窗 -->
+    <AppDialog
+      v-model:open="imagePreviewVisible"
+      title="图片预览"
+      confirm-text="关闭"
+      :show-cancel="false"
+      @confirm="imagePreviewVisible = false"
+    >
+      <div class="flex justify-center">
+        <img :src="previewImageUrl" alt="预览图片" class="max-w-full max-h-[70vh] object-contain" />
       </div>
     </AppDialog>
 
@@ -321,7 +354,7 @@ const stats = reactive({
   pendingOrganizerCount: 0
 })
 
-// 学院下拉选项（直接使用提供的列表）
+// 学院下拉选项
 const collegeOptions = [
   '化学与化工学院',
   '生命学院',
@@ -345,6 +378,10 @@ const collegeOptions = [
   '设计与艺术学院',
   '材料学院'
 ]
+
+// 图片预览
+const imagePreviewVisible = ref(false)
+const previewImageUrl = ref('')
 
 // 普通用户
 const userLoading = ref(false)
@@ -384,6 +421,12 @@ const getOrgStatusClass = (status: string) =>
     rejected: 'bg-red-100 text-red-700'
   }[status] || 'bg-gray-100')
 
+// 图片预览
+const previewImage = (url: string) => {
+  previewImageUrl.value = url
+  imagePreviewVisible.value = true
+}
+
 // 获取普通用户列表
 const fetchUsers = async () => {
   userLoading.value = true
@@ -409,11 +452,6 @@ const resetUserFilters = () => {
   userFilters.college = ''
   userPage.value = 1
   fetchUsers()
-}
-
-// 启用/禁用用户（需要后端接口）
-const toggleUserStatus = async (user: any, action: 'enable' | 'disable') => {
-  alert(`${action === 'enable' ? '启用' : '禁用'}功能需要后端接口支持，暂未实现`)
 }
 
 // 获取组织者列表
@@ -444,11 +482,21 @@ const resetOrgFilters = () => {
   fetchOrganizers()
 }
 
-const openOrgDetail = (org: any) => {
-  currentOrg.value = { ...org }
-  showRejectReason.value = false
-  rejectReason.value = ''
-  orgModalVisible.value = true
+const openOrgDetail = async (org: any) => {
+  try {
+    const res = await request.get(`/admin/organizers/${org.organizer_id}`)
+    const detail = res.data.data || res.data
+    currentOrg.value = {
+      ...detail,
+      org_proof_image: detail.org_proof_image || '',
+      org_proof_text: detail.org_proof_text || ''
+    }
+    showRejectReason.value = false
+    rejectReason.value = ''
+    orgModalVisible.value = true
+  } catch (e) {
+    showApiError(e, '获取组织者详情失败')
+  }
 }
 
 const approveOrganizer = async () => {

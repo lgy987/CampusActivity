@@ -16,6 +16,15 @@ def list_review_activities():
     result = ActivityService.list_review_activities(params)
     return success(result)
 
+@bp.get('/activities/<int:activity_id>')
+@require_auth()
+@require_role('admin')
+def get_admin_activity_detail(activity_id):
+    """获取活动详情（管理员）"""
+    from app.api.deps import get_current_user
+    role, user_id = get_current_user()
+    result = ActivityService.get_detail(activity_id, role, user_id)
+    return success(result)
 
 @bp.put('/activities/<int:activity_id>/review')
 @require_auth()

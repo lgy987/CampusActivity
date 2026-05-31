@@ -157,7 +157,21 @@ class ActivityService:
                 query = query.filter(Activity.name.contains(keyword))
             if category_id:
                 try:
-                    query = query.filter(Activity.category_id == int(category_id))
+                    cat_id = int(category_id)
+                    # 检查是否为一级分类（parent_id == 0）
+                    category = session.get(Category, cat_id)
+                    if category and category.parent_id == 0:
+                        # 一级分类：查询所有子分类ID
+                        child_ids = session.query(Category.id).filter(Category.parent_id == cat_id).all()
+                        child_ids = [c[0] for c in child_ids]
+                        if child_ids:
+                            query = query.filter(Activity.category_id.in_(child_ids))
+                        else:
+                            # 没有子分类，按原分类查（理论上不会发生）
+                            query = query.filter(Activity.category_id == cat_id)
+                    else:
+                        # 二级分类：精确匹配
+                        query = query.filter(Activity.category_id == cat_id)
                 except ValueError:
                     raise BusinessError('分类ID无效')
             if campus:
@@ -331,36 +345,62 @@ class ActivityService:
         revision.description = payload['description']
 
     @staticmethod
+    @staticmethod
     def delete_activity(organizer_id, activity_id):
-        """删除活动"""
+        """删除活动（组织者）- 彻底删除活动及所有相关数据"""
         with db_session() as session:
             activity = session.get(Activity, activity_id)
             if not activity or activity.status == 'removed':
                 raise BusinessError('活动不存在', code=404, status_code=404)
             if activity.organizer_id != organizer_id:
                 raise BusinessError('无权管理该活动', code=403, status_code=403)
+        
+            from datetime import datetime, timedelta
+            now = datetime.utcnow()
+        
+            # 检查活动是否已开始
+            if activity.start_time and now > activity.start_time:
+                raise BusinessError('活动已开始，无法删除', code=400)
+        
+            # 检查是否在活动开始前1小时内
+            if activity.start_time and now >= activity.start_time - timedelta(hours=1):
+                raise BusinessError('活动开始前1小时内不允许删除', code=400)
 
-            activity.status = 'removed'
-
-            # 删除修改记录
-            revision = session.query(ActivityRevision).filter(ActivityRevision.activity_id == activity_id).first()
-            if revision:
-                session.delete(revision)
-
-            session.flush()
-
-            # 通知所有已报名用户
-            rows = session.query(Registration).filter(
+            activity_name = activity.name
+        
+            # 获取所有已报名用户（在删除前）
+            registered_users = session.query(Registration.user_id).filter(
                 Registration.activity_id == activity_id,
                 Registration.status.in_(ActivityService.ACTIVE_STATUSES)
             ).all()
-            for row in rows:
+        
+            # 发送通知给报名用户（在删除前）
+            for (user_id,) in registered_users:
                 NotificationService.create_notification(
-                    session, 'user', row.user_id,
-                    'Activity Cancelled',
-                    f'The activity {activity.name} was cancelled.',
-                    'activity_audit_result', activity.id
-                )
+                    session, 'user', user_id,
+                    'Activity Deleted',
+                    f'The activity {activity_name} has been deleted by the organizer.',
+                    'activity_audit_result', activity_id
+            )
+        
+            # 通知组织者自己
+            NotificationService.create_notification(
+                session, 'organizer', organizer_id,
+                'Activity Deleted',
+                f'Your activity {activity_name} has been deleted.',
+                'activity_audit_result', activity_id
+            )
+        
+            # 删除所有相关数据
+            session.query(Registration).filter(Registration.activity_id == activity_id).delete()
+            from models import Checkin, ActivityCheckinCode
+            session.query(Checkin).filter(Checkin.activity_id == activity_id).delete()
+            session.query(ActivityCheckinCode).filter(ActivityCheckinCode.activity_id == activity_id).delete()
+            session.query(ActivityRevision).filter(ActivityRevision.activity_id == activity_id).delete()
+        
+            # 最后删除活动
+            session.delete(activity)
+            session.flush()
 
     @staticmethod
     def get_my_activities(organizer_id, params):
@@ -380,9 +420,24 @@ class ActivityService:
                 query = query.filter(Activity.name.contains(keyword))
             if category_id:
                 try:
-                    query = query.filter(Activity.category_id == int(category_id))
+                    cat_id = int(category_id)
+                    # 检查是否为一级分类（parent_id == 0）
+                    category = session.get(Category, cat_id)
+                    if category and category.parent_id == 0:
+                    # 一级分类：查询所有子分类ID
+                        child_ids = session.query(Category.id).filter(Category.parent_id == cat_id).all()
+                        child_ids = [c[0] for c in child_ids]
+                        if child_ids:
+                            query = query.filter(Activity.category_id.in_(child_ids))
+                        else:
+                            # 没有子分类，按原分类查（理论上不会发生）
+                            query = query.filter(Activity.category_id == cat_id)
+                    else:
+                        # 二级分类：精确匹配
+                        query = query.filter(Activity.category_id == cat_id)
                 except ValueError:
                     raise BusinessError('分类ID无效')
+            
             if campus:
                 query = query.filter(Activity.campus == campus)
             if statuses:
@@ -507,7 +562,7 @@ class ActivityService:
                     activity.status = 'open'
                 activity.reject_reason = None
                 new_status = activity.status
-                notice_content = f'Your activity {activity.name} was approved.'
+                notice_content = f'你的活动 {activity.name} 已通过审核。'
             else:
                 if activity.status == 'edit_pending':
                     revision = session.query(ActivityRevision).filter(ActivityRevision.activity_id == activity.id).first()
@@ -520,13 +575,13 @@ class ActivityService:
                     activity.status = 'rejected'
                     activity.reject_reason = reject_reason
                     new_status = 'rejected'
-                notice_content = f'Your activity {activity.name} was rejected. Reason: {reject_reason}'
+                notice_content = f'你的活动 {activity.name} 被拒绝。原因: {reject_reason}'
 
             session.flush()
 
             NotificationService.create_notification(
                 session, 'organizer', activity.organizer_id,
-                'Activity Review Result', notice_content,
+                '活动审核结果', notice_content,
                 'activity_audit_result', activity.id
             )
 
@@ -545,33 +600,54 @@ class ActivityService:
 
     @staticmethod
     def remove_activity(activity_id, reason):
-        """下架活动（管理员）"""
+        """下架活动（管理员）- 状态改为removed，删除报名和签到数据"""
         with db_session() as session:
             activity = session.get(Activity, activity_id)
             if not activity or activity.status == 'removed':
                 raise BusinessError('活动不存在', code=404, status_code=404)
+        
+            from datetime import datetime
+            now = datetime.utcnow()
+        
+            # 可选：活动开始后不能下架
+            if activity.start_time and now > activity.start_time:
+                raise BusinessError('活动已开始，无法下架', code=400)
 
-            activity.status = 'removed'
-            activity.reject_reason = reason
-            session.flush()
-
+            activity_name = activity.name
+        
+            # 获取所有已报名用户（在删除前）
+            registered_users = session.query(Registration.user_id).filter(
+                Registration.activity_id == activity_id,
+                Registration.status.in_(ActivityService.ACTIVE_STATUSES)
+            ).all()
+        
+            # 发送通知给报名用户
+            for (user_id,) in registered_users:
+                NotificationService.create_notification(
+                    session, 'user', user_id,
+                    'Activity Removed',
+                    f'The activity {activity_name} has been taken down by admin. Reason: {reason}',
+                    'activity_audit_result', activity_id
+                )
+        
             # 通知组织者
             NotificationService.create_notification(
                 session, 'organizer', activity.organizer_id,
                 'Activity Removed',
-                f'Your activity {activity.name} was removed. Reason: {reason}',
-                'activity_audit_result', activity.id
+                f'Your activity {activity_name} was removed. Reason: {reason}',
+                'activity_audit_result', activity_id
             )
-
-            # 通知所有已报名用户
-            rows = session.query(Registration).filter(
-                Registration.activity_id == activity_id,
-                Registration.status.in_(ActivityService.ACTIVE_STATUSES)
-            ).all()
-            for row in rows:
-                NotificationService.create_notification(
-                    session, 'user', row.user_id,
-                    'Activity Removed',
-                    f'The activity {activity.name} was removed. Reason: {reason}',
-                    'activity_audit_result', activity.id
-                )
+        
+            # 删除所有相关数据
+            session.query(Registration).filter(Registration.activity_id == activity_id).delete()
+            from models import Checkin, ActivityCheckinCode
+            session.query(Checkin).filter(Checkin.activity_id == activity_id).delete()
+            session.query(ActivityCheckinCode).filter(ActivityCheckinCode.activity_id == activity_id).delete()
+            session.query(ActivityRevision).filter(ActivityRevision.activity_id == activity_id).delete()
+        
+            # 更新活动状态
+            activity.status = 'removed'
+            activity.reject_reason = reason
+            activity.current_participants = 0
+        
+            session.flush()

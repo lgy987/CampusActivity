@@ -71,9 +71,26 @@ class AuthService:
             raise BusinessError('两次密码不一致')
 
         with db_session() as session:
-            if session.query(Organizer).filter(Organizer.email == email).first():
-                raise BusinessError('邮箱已注册')
-
+             # 查找是否存在该邮箱的组织者（包括已注销的）
+            existing = session.query(Organizer).filter(Organizer.email == email).first()
+        
+            if existing:
+                # 如果账号已注销，允许重新激活
+                if existing.status == 'deleted':
+                    # 更新账号信息，重新激活
+                    existing.org_name = org_name
+                    existing.password = generate_password_hash(password)
+                    existing.org_proof_text = org_proof_text
+                    existing.org_proof_image = org_proof_image
+                    existing.status = 'pending'  # 重新审核
+                    session.flush()
+                
+                    token = create_token('organizer', existing.id)
+                    return {'userId': existing.id, 'organizer_id': existing.id, 'role': 'organizer', 'token': token}
+                else:
+                    # 账号存在且未注销（pending/approved/rejected），不能重复注册
+                    raise BusinessError('邮箱已注册')
+            
             organizer = Organizer(
                 email=email,
                 org_name=org_name,
@@ -97,7 +114,7 @@ class AuthService:
                     or_(User.student_id == account, User.email == account)
                 ).first()
                 if not entity or entity.status == 'deleted':
-                    raise BusinessError('账号或密码错误', code=401)
+                    raise BusinessError('该账号不存在', code=401)
                 if not check_password_hash(entity.password, password):
                     raise BusinessError('账号或密码错误', code=401)
                 return {'token': create_token('user', entity.id), 'user_id': entity.id, 'role': 'user', 'expires_in': 7200}
@@ -105,7 +122,7 @@ class AuthService:
             elif role == 'organizer':
                 entity = session.query(Organizer).filter(Organizer.email == account).first()
                 if not entity or entity.status == 'deleted':
-                    raise BusinessError('账号或密码错误', code=401)
+                    raise BusinessError('该账号不存在', code=401)
                 if not check_password_hash(entity.password, password):
                     raise BusinessError('账号或密码错误', code=401)
                 return {'token': create_token('organizer', entity.id), 'user_id': entity.id, 'role': 'organizer', 'expires_in': 7200}
@@ -113,7 +130,7 @@ class AuthService:
             elif role == 'admin':
                 entity = session.query(Admin).filter(Admin.admin_no == account).first()
                 if not entity or entity.status == 'deleted':
-                    raise BusinessError('账号或密码错误', code=401)
+                    raise BusinessError('该账号不存在', code=401)
                 if not check_password_hash(entity.password, password):
                     raise BusinessError('账号或密码错误', code=401)
                 return {'token': create_token('admin', entity.id), 'user_id': entity.id, 'role': 'admin', 'expires_in': 7200}

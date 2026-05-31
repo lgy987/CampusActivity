@@ -1,172 +1,111 @@
 import os
 import sys
-from datetime import datetime, timedelta
 
-from sqlalchemy import inspect, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from werkzeug.security import generate_password_hash
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from config import Base, engine
-from models import Activity, Admin, Category, Organizer, Registration, User
+from config import get_config
+from models import Base, Admin, Category
 
 
-def add_column_if_missing(table_name, column_name, ddl):
-    inspector = inspect(engine)
-    columns = {column["name"] for column in inspector.get_columns(table_name)}
-    if column_name not in columns:
-        with engine.begin() as connection:
-            connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {ddl}"))
-
-
-def migrate_existing_sqlite_schema():
-    inspector = inspect(engine)
-    tables = set(inspector.get_table_names())
-    if "activity" in tables:
-        add_column_if_missing("activity", "current_participants", "current_participants INTEGER NOT NULL DEFAULT 0")
-    if "registration" in tables:
-        add_column_if_missing("registration", "slot_release_at", "slot_release_at DATETIME")
-    if "notification" in tables:
-        add_column_if_missing("notification", "related_id", "related_id INTEGER")
+# 获取数据库配置
+config = get_config()
+engine = create_engine(config.SQLALCHEMY_DATABASE_URL, pool_pre_ping=True)
 
 
 def seed_categories(session):
+    """初始化分类数据"""
     categories = [
-        (1, "Academic", 0, 1, 1),
-        (2, "Culture and Sports", 0, 1, 2),
-        (3, "Public Service", 0, 1, 3),
-        (4, "Career", 0, 1, 4),
-        (5, "Social", 0, 1, 5),
-        (6, "Training", 0, 1, 6),
-        (7, "Other", 0, 1, 7),
-        (101, "Lecture", 1, 2, 1),
-        (102, "Competition", 1, 2, 2),
-        (103, "Salon", 1, 2, 3),
-        (201, "Sports Meet", 2, 2, 1),
-        (202, "Sports Competition", 2, 2, 2),
-        (203, "Performance", 2, 2, 3),
-        (301, "Volunteer Service", 3, 2, 1),
-        (302, "Donation", 3, 2, 2),
-        (401, "Recruitment", 4, 2, 1),
-        (402, "Career Talk", 4, 2, 2),
-        (403, "Internship Sharing", 4, 2, 3),
-        (404, "Resume Coaching", 4, 2, 4),
-        (501, "Meetup", 5, 2, 1),
-        (502, "Club Recruitment", 5, 2, 2),
-        (503, "Orientation", 5, 2, 3),
-        (601, "Skill Training", 6, 2, 1),
-        (602, "Language Training", 6, 2, 2),
-        (603, "Exam Coaching", 6, 2, 3),
+        (1, "学术类", 0, 1, 1),
+        (2, "文体类", 0, 1, 2),
+        (3, "志愿服务", 0, 1, 3),
+        (4, "职业发展", 0, 1, 4),
+        (5, "社交活动", 0, 1, 5),
+        (6, "培训讲座", 0, 1, 6),
+        (7, "其他", 0, 1, 7),
+        (101, "讲座", 1, 2, 1),
+        (102, "竞赛", 1, 2, 2),
+        (103, "沙龙", 1, 2, 3),
+        (201, "运动会", 2, 2, 1),
+        (202, "体育比赛", 2, 2, 2),
+        (203, "文艺演出", 2, 2, 3),
+        (301, "志愿服务", 3, 2, 1),
+        (302, "募捐活动", 3, 2, 2),
+        (401, "招聘会", 4, 2, 1),
+        (402, "职业讲座", 4, 2, 2),
+        (403, "实习分享", 4, 2, 3),
+        (404, "简历指导", 4, 2, 4),
+        (501, "联谊活动", 5, 2, 1),
+        (502, "社团招新", 5, 2, 2),
+        (503, "迎新活动", 5, 2, 3),
+        (601, "技能培训", 6, 2, 1),
+        (602, "语言培训", 6, 2, 2),
+        (603, "考试辅导", 6, 2, 3),
     ]
+    
     existing_ids = {row[0] for row in session.query(Category.id).all()}
+    
     for category_id, name, parent_id, level, sort_order in categories:
         if category_id not in existing_ids:
-            session.add(Category(id=category_id, name=name, parent_id=parent_id, level=level, sort_order=sort_order))
+            session.add(Category(
+                id=category_id,
+                name=name,
+                parent_id=parent_id,
+                level=level,
+                sort_order=sort_order
+            ))
 
 
-def seed_accounts(session):
+def seed_admin(session):
+    """初始化超级管理员账号"""
     admin = session.query(Admin).filter(Admin.admin_no == "000001").first()
+    
     if not admin:
         admin = Admin(
             admin_no="000001",
             email="admin@example.com",
             password=generate_password_hash(os.getenv("ADMIN_PASSWORD", "Admin123456")),
-            username="Super Admin",
+            username="超级管理员",
             role="super_admin",
             status="active",
         )
         session.add(admin)
-    elif not str(admin.password).startswith(("pbkdf2:", "scrypt:")):
-        admin.password = generate_password_hash(os.getenv("ADMIN_PASSWORD", "Admin123456"))
-        admin.email = admin.email or "admin@example.com"
-        admin.username = admin.username or "Super Admin"
-        admin.status = "active"
-
-    organizer = session.query(Organizer).filter(Organizer.email == "org@example.com").first()
-    if not organizer:
-        session.add(
-            Organizer(
-                email="org@example.com",
-                org_name="Student Union",
-                password=generate_password_hash("password123"),
-                org_proof_text="Demo approved organizer",
-                status="approved",
-            )
-        )
-
-    user = session.query(User).filter(User.student_id == "2024000001").first()
-    if not user:
-        session.add(
-            User(
-                student_id="2024000001",
-                email="user@example.com",
-                username="Demo Student",
-                password=generate_password_hash("password123"),
-                gender="male",
-                college="Computer School",
-                major="Computer Science",
-                grade="2024",
-                phone="13800138000",
-                status="active",
-            )
-        )
-
-
-def seed_demo_activity(session):
-    organizer = session.query(Organizer).filter(Organizer.email == "org@example.com").first()
-    user = session.query(User).filter(User.student_id == "2024000001").first()
-    if not organizer or not user:
-        return
-
-    activity = session.query(Activity).filter(Activity.name == "AI Frontiers Lecture").first()
-    start = datetime.utcnow() + timedelta(minutes=10)
-    if not activity:
-        activity = Activity(
-            organizer_id=organizer.id,
-            category_id=101,
-            name="AI Frontiers Lecture",
-            start_time=start,
-            end_time=start + timedelta(hours=3),
-            campus="Liangxiang",
-            location="Library Auditorium",
-            max_participants=100,
-            current_participants=0,
-            registration_deadline=start - timedelta(minutes=5),
-            cancel_deadline=start - timedelta(minutes=5),
-            description="Demo activity for registration and check-in integration.",
-            status="open",
-        )
-        session.add(activity)
-        session.flush()
+        print("超级管理员账号创建成功")
     else:
-        activity.start_time = start
-        activity.end_time = start + timedelta(hours=3)
-        activity.registration_deadline = start - timedelta(minutes=5)
-        activity.cancel_deadline = start - timedelta(minutes=5)
-        activity.status = "open"
-
-    row = session.query(Registration).filter(Registration.activity_id == activity.id, Registration.user_id == user.id).first()
-    if not row:
-        session.add(Registration(activity_id=activity.id, user_id=user.id, status="registered"))
-        activity.current_participants = 1
+        print("超级管理员账号已存在")
 
 
 def init_database():
+    """初始化数据库"""
+    print("开始初始化数据库...")
+    
+    # 创建所有表
     Base.metadata.create_all(bind=engine)
-    migrate_existing_sqlite_schema()
-
+    print("数据库表创建成功")
+    
+    # 创建会话
     Session = sessionmaker(bind=engine)
     session = Session()
+    
     try:
+        # 初始化分类数据
         seed_categories(session)
-        seed_accounts(session)
+        print("分类数据初始化完成")
+        
+        # 初始化超级管理员
+        seed_admin(session)
+        print("超级管理员初始化完成")
+        
+        # 提交所有更改
         session.commit()
-        seed_demo_activity(session)
-        session.commit()
-        print("Database initialized and demo data seeded.")
-    except Exception:
+        print("数据库初始化完成！")
+        
+    except Exception as e:
         session.rollback()
+        print(f"初始化失败: {e}")
         raise
     finally:
         session.close()

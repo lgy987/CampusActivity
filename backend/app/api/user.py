@@ -54,14 +54,17 @@ def reset_password():
     """修改密码"""
     from flask import g
     data = get_json_data()
+    old_password = data.get('old_password', '')  
     new_password = data.get('new_password', '')
     confirm_password = data.get('confirm_password', '')
+    if not old_password:
+        raise BusinessError('请输入旧密码', code=400)
     if not new_password:
         raise BusinessError('new_password is required', code=400)
     if new_password != confirm_password:
         raise BusinessError('两次密码不一致', code=400)
     try:
-        UserService.reset_password(g.current_role, g.current_user_id, new_password)
+        UserService.reset_password(g.current_role, g.current_user_id, old_password, new_password)
         return success(None, message='密码重置成功')
     except BusinessError as e:
         return e.to_response()

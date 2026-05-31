@@ -87,6 +87,7 @@ const formData = reactive({
   email: '',
   description: ''
 })
+
 const profileStatus = ref('approved')
 const avatarUrl = ref('')
 const uploadingAvatar = ref(false)
@@ -164,20 +165,16 @@ const changePassword = async () => {
 
   changingPassword.value = true
   try {
-    // 使用邮箱和旧密码登录获取 token
-    const loginRes = await login({ role: 'organizer', account: formData.email, password: oldPassword.value })
-    const token = loginRes.token
-
     await resetPassword({
-      token: token,
+      old_password: oldPassword.value,
       new_password: newPassword.value,
       confirm_password: confirmPassword.value
     })
-
-    alert('密码修改成功，请重新登录')
+    alert('密码修改成功')
     pwdModalVisible.value = false
-    await logout()
-    router.push('/login')
+    oldPassword.value = ''
+    newPassword.value = ''
+    confirmPassword.value = ''
   } catch (e: any) {
     const msg = e.response?.data?.message || e.message || '修改失败，请检查旧密码是否正确'
     alert(msg)

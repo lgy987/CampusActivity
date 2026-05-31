@@ -61,12 +61,8 @@
             </select>
           </div>
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">开始时间(起)</label>
-            <input type="date" v-model="filters.startDateFrom" class="border rounded-lg px-3 py-2 text-sm w-48 text-gray-900">
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">开始时间(止)</label>
-            <input type="date" v-model="filters.startDateTo" class="border rounded-lg px-3 py-2 text-sm w-48 text-gray-900">
+            <label class="block text-xs font-medium text-gray-600 mb-1">开始日期</label>
+            <input type="date" v-model="filters.startDate" class="border rounded-lg px-3 py-2 text-sm w-48 text-gray-900">
           </div>
           <div class="flex gap-3">
             <button @click="applyFilters" class="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium shadow-sm hover:bg-blue-700">筛选</button>
@@ -130,14 +126,15 @@ const activities = ref<any[]>([])
 const currentPage = ref(1)
 const totalPages = ref(1)
 const pageSize = 10
-const categories = ref<{ id: number; name: string }[]>([])
+const categories = ref<{ id: number; name: string; level: number }[]>([])
 const currentGroup = ref('all')
 const currentSubStatus = ref('')
 const filters = reactive({
   categoryId: '',
-  startDateFrom: '',
-  startDateTo: ''
+  startDate: '',
 })
+
+const organizerStatus = computed(() => userStore.userInfo?.status || '')
 
 const statusGroups = [
   { key: 'all', label: '全部' },
@@ -147,10 +144,10 @@ const statusGroups = [
 ]
 const unpublishedSubStatuses = [
   { key: '', label: '全部' },
-  { key: 'pending', label: '待审核' },
-  { key: 'modifying', label: '审核中' },
+  { key: 'draft', label: '待审核' },
+  { key: 'pending', label: '审核中' },
   { key: 'rejected', label: '审核未通过' },
-  { key: 'shelved', label: '下架' }
+  { key: 'removed', label: '下架' }
 ]
 const publishedSubStatuses = [
   { key: '', label: '全部' },
@@ -165,7 +162,7 @@ const subStatuses = computed(() => {
 })
 
 const statusTextMap: Record<string, string> = {
-  pending: '待审核', modifying: '审核中', rejected: '审核未通过', shelved: '下架',
+  draft: '待审核', pending: '审核中', rejected: '审核未通过', removed: '下架',
   open: '报名中', edit_pending: '审核修改中', ongoing: '进行中', ended: '已结束'
 }
 const statusColorMap: Record<string, string> = {
@@ -180,13 +177,21 @@ const statusColorClass = (s: string) => statusColorMap[s] || 'bg-gray-100 text-g
 const fetchCategories = async () => {
   try {
     const data = await getCategories()
-    const flat: any[] = []
+    const flat: { id: number; name: string; level: number }[] = []
     data.forEach((cat: any) => {
-      flat.push({ id: cat.id, name: cat.name })
-      if (cat.children) {
-        cat.children.forEach((child: any) => flat.push({ id: child.id, name: child.name }))
+      // 添加一级分类
+      flat.push({ id: cat.id, name: cat.name, level: 1 })
+      // 添加二级分类（带缩进标识）
+      if (cat.children && cat.children.length) {
+        cat.children.forEach((child: any) => {
+          flat.push({ 
+            id: child.id, 
+            name: `\u00A0\u00A0\u00A0\u00A0${child.name}`, // 添加缩进，区分层级
+            level: 2 
+          })
+        })  
       }
-    })
+    }) 
     categories.value = flat
   } catch (e) {
     showApiError(e, '获取分类失败')
@@ -198,7 +203,7 @@ const fetchActivities = async () => {
   try {
     let statusParam = ''
     if (currentGroup.value === 'unpublished') {
-      statusParam = currentSubStatus.value || 'pending,modifying,rejected,shelved'
+      statusParam = currentSubStatus.value || 'draft,pending,rejected,removed'
     } else if (currentGroup.value === 'published') {
       statusParam = currentSubStatus.value || 'open,edit_pending,ongoing'
     } else if (currentGroup.value === 'ended') {
@@ -209,7 +214,7 @@ const fetchActivities = async () => {
       page_size: pageSize,
       status: statusParam || undefined,
       category_id: filters.categoryId ? Number(filters.categoryId) : undefined,
-      start_date: filters.startDateFrom || undefined
+      start_date: filters.startDate || undefined
     }
     const data = await getMyActivities(params)
     activities.value = data.list.map((a: any) => ({
@@ -246,20 +251,46 @@ const applyFilters = () => {
 }
 const resetFilters = () => {
   filters.categoryId = ''
-  filters.startDateFrom = ''
-  filters.startDateTo = ''
+  filters.startDate = ''
   currentPage.value = 1
   fetchActivities()
 }
+
 const goToPage = (page: number) => {
   currentPage.value = page
   fetchActivities()
 }
 const goToDetail = (id: number) => router.push(`/organizer/activity?id=${id}`)
-const goToCreateActivity = () => router.push('/organizer/activity')
 
-onMounted(() => {
+const goToCreateActivity = () => {
+  const status = organizerStatus.value
+  if (status === 'pending') {
+    alert('您的账号正在审核中，暂不能创建活动。请等待管理员审核通过后再试。')
+    return
+  }
+  if (status === 'rejected') {
+    alert('您的账号审核未通过，无法创建活动。请联系管理员了解具体原因。')
+    return
+  }
+  if (status === 'deleted') {
+    alert('您的账号已被注销，无法创建活动。')
+    return
+  }
+  if (status !== 'approved') {
+    alert('账号状态异常，无法创建活动')
+    return
+  }
+  // 审核通过，跳转到创建活动页面
+  router.push('/organizer/activity')
+}
+
+onMounted(async () => {
+  // 如果 userStore 中没有用户信息，先获取
+  if (!userStore.userInfo) {
+    await userStore.fetchProfile()
+  }
   fetchCategories()
   fetchActivities()
 })
+
 </script>

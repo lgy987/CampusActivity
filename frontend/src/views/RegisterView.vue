@@ -62,9 +62,9 @@ async function handleRegister(values: Record<string, string>) {
       college: extra.value.college,
       major: payload.major,
       grade: extra.value.grade,
-      phone: payload.phone || undefined,
+      phone: payload.phone ? payload.phone : null,
     })
-    auth.setAuth(reg.token, reg.userId)
+    auth.setAuth(reg.token, reg.userId, "user")
     await userStore.fetchProfile()
     toast.success('注册成功，已自动登录')
     router.push('/activities')

@@ -33,11 +33,13 @@
             <div class="md:col-span-2"><label class="block text-sm font-medium text-gray-700">活动简介</label><textarea v-model="activity.description" rows="3" class="w-full border rounded-lg px-3 py-2 bg-gray-50" readonly></textarea></div>
           </div>
 
-          <div class="flex gap-3 pt-4 border-t" v-if="activity.status === 'pending'">
+          <div class="flex gap-3 pt-4 border-t" v-if="activity.status === 'pending' || activity.status === 'edit_pending'">
             <AppButton variant="blue" @click="approve">通过</AppButton>
             <AppButton variant="destructive" @click="openRejectModal">拒绝</AppButton>
           </div>
-          <div class="flex gap-3 pt-4 border-t" v-if="activity.status === 'approved' && !isActivityStarted">
+          
+          <!-- 已审核且未开始的活动：显示下架按钮 -->
+          <div class="flex gap-3 pt-4 border-t" v-if="(activity.status === 'open' || activity.status === 'ongoing') && !isActivityStarted">
             <AppButton variant="destructive" @click="openRemoveModal">下架</AppButton>
           </div>
         </AppCard>
@@ -91,11 +93,28 @@ const activity = reactive({
 const isActivityStarted = computed(() => new Date(activity.start_time) <= new Date())
 
 const statusText = (status: string) => {
-  const map: Record<string, string> = { pending: '待审核', approved: '已通过', rejected: '已拒绝', removed: '已下架' }
+  const map: Record<string, string> = { 
+    pending: '审核中', 
+    edit_pending: '修改待审核',  
+    open: '已通过',
+    ongoing: '进行中',
+    ended: '已结束',
+    rejected: '已拒绝', 
+    removed: '已下架' 
+  }
   return map[status] || status
 }
 const statusColorClass = (status: string) => {
-  const map: Record<string, string> = { pending: 'bg-yellow-100 text-yellow-700', approved: 'bg-green-100 text-green-700', rejected: 'bg-red-100 text-red-700', removed: 'bg-gray-100 text-gray-700' }
+  const map: Record<string, string> = { 
+    pending: 'bg-yellow-100 text-yellow-700',
+    edit_pending: 'bg-orange-100 text-orange-700',
+    open: 'bg-green-100 text-green-700',
+    ongoing: 'bg-blue-100 text-blue-700',
+    ended: 'bg-gray-100 text-gray-700',
+    approved: 'bg-green-100 text-green-700', 
+    rejected: 'bg-red-100 text-red-700', 
+    removed: 'bg-gray-100 text-gray-700' 
+  }
   return map[status] || 'bg-gray-100'
 }
 

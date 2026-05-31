@@ -28,7 +28,7 @@ const filters = ref({
   start_year: '',
   start_month: '',
   start_day: '',
-  campus: '良乡',
+  campus: '',
 })
 
 const categoryOptions = computed(() => {
@@ -105,7 +105,7 @@ const days = Array.from({ length: 31 }, (_, i) => String(i + 1))
         <SegmentedControl
           v-model="statusTab"
           :options="[
-            { value: 'open', label: '将要进行的活动' },
+            { value: 'open,edit_pending', label: '将要进行的活动' },
             { value: 'ongoing', label: '正在进行的活动' },
           ]"
         />
