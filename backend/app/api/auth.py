@@ -57,13 +57,6 @@ def logout():
 @bp.post('/upload-organizer-proof')
 def upload_organizer_proof():
     """上传组织者证明图片（无需认证，用于注册时上传）"""
-    from werkzeug.utils import secure_filename
-    from flask import current_app, url_for
-    from pathlib import Path
-    from uuid import uuid4
-    
-    print("=== upload_organizer_proof 被调用 ===")
-    
     if 'proof_image' not in request.files:
         raise BusinessError('请上传图片文件', code=400)
     
@@ -71,22 +64,8 @@ def upload_organizer_proof():
     if not file or not file.filename:
         raise BusinessError('请选择图片文件', code=400)
     
-    filename = secure_filename(file.filename)
-    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
-    if ext not in ('jpg', 'jpeg', 'png'):
-        raise BusinessError('图片仅支持jpg/png格式', code=400)
-    
-    file.seek(0, 2)
-    size = file.tell()
-    file.seek(0)
-    if size > 2 * 1024 * 1024:
-        raise BusinessError('图片大小不能超过2MB', code=400)
-    
-    upload_dir = Path(current_app.root_path) / 'static' / 'temp_proofs'
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    new_filename = f"temp_{uuid4().hex}.{ext}"
-    file.save(upload_dir / new_filename)
-    
-    image_url = url_for('static', filename=f'temp_proofs/{new_filename}', _external=True)
-    
-    return success({'image_url': image_url}, message='图片上传成功')
+    try:
+        result = AuthService.upload_organizer_proof(file)
+        return success(result, message='图片上传成功')
+    except BusinessError as e:
+        return e.to_response()

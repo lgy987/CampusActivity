@@ -1,12 +1,15 @@
 import re
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import or_
+from werkzeug.utils import secure_filename
+from flask import current_app, url_for
+from pathlib import Path
+from uuid import uuid4
 
 from app.common.errors import BusinessError
 from app.common.auth import create_token
 from app.common.database import db_session
 from models import User, Organizer, Admin
-
 
 class AuthService:
     """认证服务"""
@@ -137,3 +140,33 @@ class AuthService:
 
             else:
                 raise BusinessError('角色类型无效')
+            
+    @staticmethod
+    def upload_organizer_proof(file):
+        """上传组织者证明图片（无需认证，用于注册时上传）"""
+        # 校验文件
+        if not file or not file.filename:
+            raise BusinessError('请上传图片文件', code=400)
+        
+        filename = secure_filename(file.filename)
+        ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+        if ext not in ('jpg', 'jpeg', 'png'):
+            raise BusinessError('图片仅支持jpg/png格式', code=400)
+        
+        # 校验文件大小（2MB）
+        file.seek(0, 2)
+        size = file.tell()
+        file.seek(0)
+        if size > 2 * 1024 * 1024:
+            raise BusinessError('图片大小不能超过2MB', code=400)
+        
+        # 保存文件
+        upload_dir = Path(current_app.root_path) / 'static' / 'temp_proofs'
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        new_filename = f"temp_{uuid4().hex}.{ext}"
+        file.save(upload_dir / new_filename)
+        
+        # 返回图片URL
+        image_url = url_for('static', filename=f'temp_proofs/{new_filename}', _external=True)
+        
+        return {'image_url': image_url}
