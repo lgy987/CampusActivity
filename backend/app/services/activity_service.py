@@ -312,31 +312,63 @@ class ActivityService:
             if activity.status in ('open', 'ongoing', 'edit_pending') and payload['max_participants'] < activity.max_participants:
                 raise BusinessError('人数限制只能增加，不能减少', code=400)
 
+            has_changes = False
             if activity.status in ActivityService.EDITABLE_DIRECT_STATUSES:
                 # 直接更新
-                ActivityService._apply_activity_fields(activity, payload)
+                if (activity.name != payload['name'] or
+                    activity.category_id != payload['category_id'] or
+                    activity.start_time != payload['start_time'] or
+                    activity.end_time != payload['end_time'] or
+                    activity.campus != payload['campus'] or
+                    activity.location != payload['location'] or
+                    activity.max_participants != payload['max_participants'] or
+                    activity.registration_deadline != payload['registration_deadline'] or
+                    activity.cancel_deadline != payload['cancel_deadline'] or
+                    activity.description != payload['description']):
+                    has_changes = True
+                if has_changes:
+                    ActivityService._apply_activity_fields(activity, payload)
+                    if activity.status == 'rejected':
+                        activity.status = 'draft'
+                else:
+                    raise BusinessError('没有检测到修改', code=400)
             else:
                 # 需要二次审核
                 revision = session.query(ActivityRevision).filter(ActivityRevision.activity_id == activity.id).first()
-                if not revision:
-                    revision = ActivityRevision(
-                        activity_id=activity.id,
-                        organizer_id=activity.organizer_id,
-                        category_id=payload['category_id'],
-                        name=payload['name'],
-                        start_time=payload['start_time'],
-                        end_time=payload['end_time'],
-                        campus=payload['campus'],
-                        location=payload['location'],
-                        max_participants=payload['max_participants'],
-                        registration_deadline=payload['registration_deadline'],
-                        cancel_deadline=payload['cancel_deadline'],
-                        description=payload['description']
-                    )
-                    session.add(revision)
+                current_source = revision if revision else activity
+                if (current_source.name != payload['name'] or
+                    current_source.category_id != payload['category_id'] or
+                    current_source.start_time != payload['start_time'] or
+                    current_source.end_time != payload['end_time'] or
+                    current_source.campus != payload['campus'] or
+                    current_source.location != payload['location'] or
+                    current_source.max_participants != payload['max_participants'] or
+                    current_source.registration_deadline != payload['registration_deadline'] or
+                    current_source.cancel_deadline != payload['cancel_deadline'] or
+                    current_source.description != payload['description']):
+                    has_changes = True
+                if has_changes:
+                    if not revision:
+                        revision = ActivityRevision(
+                            activity_id=activity.id,
+                            organizer_id=activity.organizer_id,
+                            category_id=payload['category_id'],
+                            name=payload['name'],
+                            start_time=payload['start_time'],
+                            end_time=payload['end_time'],
+                            campus=payload['campus'],
+                            location=payload['location'],
+                            max_participants=payload['max_participants'],
+                            registration_deadline=payload['registration_deadline'],
+                            cancel_deadline=payload['cancel_deadline'],
+                            description=payload['description']
+                        )
+                        session.add(revision)
+                    else:
+                        ActivityService._apply_revision_fields(revision, payload)
+                    activity.status = 'edit_pending'
                 else:
-                    ActivityService._apply_revision_fields(revision, payload)
-                activity.status = 'edit_pending'
+                    raise BusinessError('没有检测到修改', code=400)
 
             activity.reject_reason = None
             session.flush()

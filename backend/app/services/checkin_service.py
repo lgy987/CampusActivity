@@ -212,6 +212,9 @@ class CheckinService:
                     'user_id': c.user.id,
                     'student_id': c.user.student_id,
                     'username': c.user.username,
+                    'college': c.user.college,     
+                    'major': c.user.major,          
+                    'grade': c.user.grade,  
                     'checkin_time': dt(c.checkin_time),
                     'checkin_method': c.checkin_method
                 } for c in checkins],

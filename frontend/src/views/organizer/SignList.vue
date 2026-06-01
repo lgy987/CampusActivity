@@ -35,8 +35,7 @@
                   <td class="px-6 py-4 text-sm text-gray-500">{{ sign.major }}</td>
                   <td class="px-6 py-4 text-sm text-gray-500">{{ sign.grade }}</td>
                   <td class="px-6 py-4 text-sm text-gray-500">
-                    <span v-if="sign.checkinTime" class="text-green-600">{{ sign.checkinTime ? sign.checkinTime.replace('T', ' ').slice(0, 19) : '-' }}</span>
-                    <span v-else class="text-gray-400">未签到</span>
+                    <span v-if="sign.checkinTime" class="text-green-600">{{ formatDateTime(sign.checkinTime) }}</span>
                   </td>
                 </tr>
                 <tr v-if="!loading && signRecords.length === 0">
@@ -65,7 +64,7 @@ import AppDialog from '@/components/layout/AppDialog.vue'
 import { getActivityCheckins, manualCheckin } from '@/api/organizer'
 import { showApiError } from '@/api/request'
 import OrganizerSidebar from '@/components/layout/OrganizerSidebar.vue'
-
+import {formatDateTime } from '@/utils'
 const router = useRouter()
 const route = useRoute()
 const activityId = Number(route.query.activityId)

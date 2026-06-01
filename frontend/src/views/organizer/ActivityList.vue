@@ -145,7 +145,7 @@ const statusGroups = [
 ]
 const unpublishedSubStatuses = [
   { key: '', label: '全部' },
-  { key: 'draft', label: '待审核' },
+  { key: 'draft', label: '草稿' },
   { key: 'pending', label: '审核中' },
   { key: 'rejected', label: '审核未通过' },
   { key: 'removed', label: '下架' }
@@ -163,7 +163,7 @@ const subStatuses = computed(() => {
 })
 
 const statusTextMap: Record<string, string> = {
-  draft: '待审核', pending: '审核中', rejected: '审核未通过', removed: '下架',
+  draft: '草稿', pending: '审核中', rejected: '审核未通过', removed: '下架',
   open: '报名中', edit_pending: '审核修改中', ongoing: '进行中', ended: '已结束'
 }
 const statusColorMap: Record<string, string> = {

@@ -1,4 +1,3 @@
-# app/tasks/scheduler.py
 from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -96,6 +95,7 @@ def start_scheduler():
     if _scheduler is not None:
         return
     
+    update_activity_statuses()
     _scheduler = BackgroundScheduler()
     
     # 每5分钟检查一次活动状态更新

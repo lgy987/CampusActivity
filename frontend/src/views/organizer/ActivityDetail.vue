@@ -229,9 +229,9 @@ watch(() => formData.start_time, (newStartTime) => {
 })
 
 const canSave = computed(() => true)
-// 允许提交审核的状态：草稿、被拒绝、修改待审核
+// 允许提交审核的状态：草稿、被拒绝
 const canApplyReview = computed(() => 
-  ['draft', 'pending', 'rejected', 'edit_pending'].includes(activityData.status)
+  activityData.status === 'draft'
 )
 const canDelete = computed(() => !['ended', 'removed'].includes(activityData.status))
 

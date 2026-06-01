@@ -35,7 +35,7 @@
                   <td class="px-6 py-4 text-sm text-gray-500">{{ reg.college }}</td>
                   <td class="px-6 py-4 text-sm text-gray-500">{{ reg.major }}</td>
                   <td class="px-6 py-4 text-sm text-gray-500">{{ reg.grade }}</td>
-                  <td class="px-6 py-4 text-sm text-gray-500">{{ reg.registeredAt }}</td>
+                  <td class="px-6 py-4 text-sm text-gray-500">{{ formatDateTime(reg.registeredAt) }}</td>
                   <td class="px-6 py-4">
                     <AppButton size="sm" variant="destructive" @click="openRejectModal(reg.id)">拒绝</AppButton>
                   </td>
@@ -70,6 +70,7 @@ import AppDialog from '@/components/layout/AppDialog.vue'
 import { getActivityRegistrations, rejectRegistration } from '@/api/organizer'
 import { showApiError } from '@/api/request'
 import OrganizerSidebar from '@/components/layout/OrganizerSidebar.vue'
+import { formatDateTime } from '@/utils'
 
 const router = useRouter()
 const route = useRoute()

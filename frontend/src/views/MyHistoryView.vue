@@ -87,7 +87,6 @@ async function fetchList() {
       checkinMethods.value = Object.fromEntries(
         checkinData.list.map((c) => [c.activity_id, c.checkin_method]),
       )
-      // ✅ 不过滤时间
       list.value = regData.list.map((r) => {
         const c = checkinMap.get(r.activity_id)
         if (!c) return r
@@ -101,7 +100,6 @@ async function fetchList() {
     } else {
       const data = await getMyRegistrations(params)
       console.log('返回数据:', data)
-      // ✅ 不过滤时间，直接显示所有报名记录
       list.value = data.list
       total.value = data.total
     }
@@ -134,8 +132,8 @@ const days = Array.from({ length: 31 }, (_, i) => String(i + 1))
         <SegmentedControl
           v-model="tab"
           :options="[
-            { value: 'upcoming', label: '正在参与的活动' },
-            { value: 'past', label: '参与过的活动' },
+            { value: 'upcoming', label: '报名历史' },
+            { value: 'past', label: '签到历史' },
           ]"
         />
         <button type="button" class="p-1 text-gray-400 hover:text-blue-600" @click="showSearch = !showSearch">
