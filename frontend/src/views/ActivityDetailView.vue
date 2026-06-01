@@ -154,7 +154,7 @@ async function handleCheckin(code: string) {
             <div class="flex justify-between"><dt class="text-gray-500">活动分类</dt><dd>{{ activity.category_name }}</dd></div>
             <div class="flex justify-between"><dt class="text-gray-500">举办单位</dt><dd>{{ activity.organizer_name }}</dd></div>
             <div class="flex justify-between"><dt class="text-gray-500">开始时间</dt><dd>{{ formatDateTime(activity.start_time) }}</dd></div>
-            <div class="flex justify-between"><dt class="text-gray-500">持续时间</dt><dd>{{ durationText }}</dd></div>
+            <div class="flex justify-between"><dt class="text-gray-500">结束时间</dt><dd>{{ formatDateTime(activity.end_time) }}</dd></div>
             <div class="flex justify-between"><dt class="text-gray-500">校区</dt><dd>{{ activity.campus }}校区</dd></div>
             <div class="flex justify-between"><dt class="text-gray-500">地点</dt><dd>{{ activity.location }}</dd></div>
             <div class="flex justify-between">
