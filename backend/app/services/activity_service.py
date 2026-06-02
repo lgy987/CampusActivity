@@ -22,7 +22,7 @@ class ActivityService:
                 return datetime.strptime(value, fmt)
             except ValueError:
                 continue
-        raise BusinessError('Invalid datetime format')
+        raise BusinessError('日期时间格式无效')
 
     @staticmethod
     def _normalize_payload(data):

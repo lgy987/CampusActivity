@@ -60,7 +60,7 @@ def reset_password():
     if not old_password:
         raise BusinessError('请输入旧密码', code=400)
     if not new_password:
-        raise BusinessError('new_password is required', code=400)
+        raise BusinessError('新密码不能为空', code=400)
     if new_password != confirm_password:
         raise BusinessError('两次密码不一致', code=400)
     try:

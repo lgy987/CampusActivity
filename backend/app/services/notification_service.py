@@ -73,7 +73,7 @@ class NotificationService:
         with db_session() as session:
             notification = session.get(Notification, notification_id)
             if not notification or notification.receiver_type != role or notification.receiver_id != user_id:
-                raise BusinessError('Notification not found', code=404, status_code=404)
+                raise BusinessError('通知不存在', code=404, status_code=404)
             notification.is_read = True
 
     @staticmethod
@@ -86,7 +86,7 @@ class NotificationService:
                 return datetime.strptime(value, fmt)
             except ValueError:
                 continue
-        raise BusinessError('Invalid datetime format')
+        raise BusinessError('日期时间格式无效')
 
     @staticmethod
     def create_announcement(admin_id, title, content, start_time, end_time):
@@ -150,5 +150,5 @@ class NotificationService:
         with db_session() as session:
             announcement = session.get(Announcement, announcement_id)
             if not announcement:
-                raise BusinessError('Announcement not found', code=404, status_code=404)
+                raise BusinessError('公告不存在', code=404, status_code=404)
             session.delete(announcement)
