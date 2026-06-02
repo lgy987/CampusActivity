@@ -444,8 +444,8 @@ class ActivityService:
             # 通知组织者自己
             NotificationService.create_notification(
                 session, 'organizer', organizer_id,
-                'Activity Deleted',
-                f'Your activity {activity_name} has been deleted.',
+                '活动删除',
+                f'你的活动 {activity_name} 成功删除了。',
                 'activity_audit_result', activity_id
             )
         

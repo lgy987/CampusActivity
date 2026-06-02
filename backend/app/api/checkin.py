@@ -20,7 +20,7 @@ def get_checkin_code(activity_id):
 @require_auth()
 @require_role('user')
 def checkin(activity_id):
-    """扫码签到（普通用户）"""
+    """签到码（普通用户）"""
     data = get_json_data()
     checkin_code = data.get('checkin_code', '').strip()
     if not checkin_code:

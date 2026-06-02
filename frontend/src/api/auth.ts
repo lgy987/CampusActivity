@@ -35,7 +35,7 @@ export function register(payload: RegisterPayload) {
 
 // 组织者注册
 export function registerOrganizer(payload: OrganizerRegisterPayload) {
-  return apiPost<{ user_id: number; status: string; token: string }>('/auth/register/organizer', payload)
+  return apiPost<RegisterData>('/auth/register/organizer', payload)
 }
 
 
