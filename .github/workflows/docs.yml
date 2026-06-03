@@ -32,6 +32,9 @@ jobs:
           pip install -r requirements.txt
           pip install pydoc-markdown
 
+      - name: 创建文档目录
+        run: mkdir -p docs
+
       - name: 生成 API 文档
         working-directory: backend
         run: pydoc-markdown
