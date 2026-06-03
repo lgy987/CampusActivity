@@ -2,7 +2,7 @@ from flask import Blueprint
 from app.common.response import success
 from app.services.category_service import CategoryService
 
-bp = Blueprint('categories', __name__)
+bp = Blueprint('Categories', __name__)
 
 
 @bp.get('')

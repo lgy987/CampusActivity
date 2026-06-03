@@ -61,7 +61,7 @@ class StatsService:
                     'organize': organizer_count,
                     'admin': admin_count
                 },
-                'total_participation_count': total_checkins,
+                'total_participation_count': total_registrations,
                 'average_checkin_rate': average_checkin_rate
             }
 

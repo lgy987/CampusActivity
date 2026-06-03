@@ -4,7 +4,7 @@ from app.common.response import success
 from app.common.errors import BusinessError
 from app.services.user_service import UserService
 
-bp = Blueprint('user', __name__)
+bp = Blueprint('User', __name__)
 
 
 @bp.get('/profile')

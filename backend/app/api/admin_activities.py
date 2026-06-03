@@ -4,7 +4,7 @@ from app.common.response import success
 from app.common.errors import BusinessError
 from app.services.activity_service import ActivityService
 
-bp = Blueprint('admin_activities', __name__)
+bp = Blueprint('Admin_Activities', __name__)
 
 
 @bp.get('/activities')

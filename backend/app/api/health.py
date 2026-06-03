@@ -1,7 +1,7 @@
 from flask import Blueprint
 from app.common.response import success
 
-bp = Blueprint('health', __name__)
+bp = Blueprint('Health', __name__)
 
 
 @bp.get('/health')
