@@ -27,18 +27,7 @@ loaders:
 
 processors:
   - type: filter
-    expression: |
-      not name.startswith('_') and
-      name not in [
-        'Base', 'relationship', 'Column', 'declarative_base',
-        'func', 'UniqueConstraint', 'ForeignKey', 'Text',
-        'db_session', 'get_db', 'SessionLocal', 'engine',
-        're', 'datetime', 'timedelta', 'Counter',
-        'random', 'string', 'jsonify', 'Blueprint', 'request',
-        'g', 'current_app', 'url_for', 'Path', 'uuid4',
-        'generate_password_hash', 'check_password_hash',
-        'secure_filename', 'or_', 'jwt'
-      ]
+    expression: "not name.startswith('_') and name not in ['Base', 'relationship', 'Column', 'declarative_base', 'func', 'UniqueConstraint', 'ForeignKey', 'Text', 'db_session', 'get_db', 'SessionLocal', 'engine', 're', 'datetime', 'timedelta', 'Counter', 'random', 'string', 'jsonify', 'Blueprint', 'request', 'g', 'current_app', 'url_for', 'Path', 'uuid4', 'generate_password_hash', 'check_password_hash', 'secure_filename', 'or_', 'jwt']"
   - type: smart
 
 renderer:
