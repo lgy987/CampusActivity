@@ -32,10 +32,9 @@ processors:
 
 renderer:
   type: markdown
-  filename: ../docs/API.md
+  filename: API.md
   render_toc: true
   header_level_by_type:
     module: 1
     class: 2
     method: 3
-  add_method_class_prefix: true

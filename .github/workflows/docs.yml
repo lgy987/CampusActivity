@@ -32,12 +32,22 @@ jobs:
           pip install -r requirements.txt
           pip install pydoc-markdown
 
-      - name: 创建文档目录
+      - name: 创建 docs 目录
         run: mkdir -p docs
 
       - name: 生成 API 文档
         working-directory: backend
         run: pydoc-markdown
+
+      - name: 移动文档到 docs 目录
+        run: |
+          # 如果文档生成在别处，移动到 docs
+          if [ -f "backend/API.md" ]; then
+            mv backend/API.md docs/API.md
+          fi
+          if [ -f "API.md" ]; then
+            mv API.md docs/API.md
+          fi
 
       - name: 创建 README 索引
         run: |
@@ -51,7 +61,15 @@ jobs:
           EOF
           echo "$(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> docs/README.md
 
-      - name: 上传文档产物
+      - name: 提交文档到仓库
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/
+          git diff --staged --quiet || git commit -m "docs: auto-update API documentation [skip ci]"
+          git push
+
+      - name: 上传文档产物（可选）
         uses: actions/upload-artifact@v4
         with:
           name: api-docs
