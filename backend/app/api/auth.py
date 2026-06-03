@@ -4,7 +4,7 @@ from app.common.response import success
 from app.common.errors import BusinessError
 from app.services.auth_service import AuthService 
 
-bp = Blueprint('auth', __name__)
+bp = Blueprint('Auth', __name__)
 
 
 @bp.post('/register/user')

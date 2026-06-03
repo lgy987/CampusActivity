@@ -4,7 +4,7 @@ from app.common.response import success
 from app.common.errors import BusinessError
 from app.services.registration_service import RegistrationService
 
-bp = Blueprint('registrations', __name__)
+bp = Blueprint('Registrations', __name__)
 
 
 @bp.post('/activities/<int:activity_id>/register')

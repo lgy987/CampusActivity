@@ -4,7 +4,7 @@ from app.common.response import success
 from app.common.errors import BusinessError
 from app.services.activity_service import ActivityService
 
-bp = Blueprint('activities', __name__)
+bp = Blueprint('Activities', __name__)
 
 
 @bp.post('/organizer/activities')

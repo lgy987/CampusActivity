@@ -4,7 +4,7 @@ from app.common.response import success
 from app.common.errors import BusinessError
 from app.services.notification_service import NotificationService
 
-bp = Blueprint('notifications', __name__)
+bp = Blueprint('Notifications', __name__)
 
 
 @bp.get('/notifications')

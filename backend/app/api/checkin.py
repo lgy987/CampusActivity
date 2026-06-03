@@ -4,7 +4,7 @@ from app.common.response import success
 from app.common.errors import BusinessError
 from app.services.checkin_service import CheckinService
 
-bp = Blueprint('checkin', __name__)
+bp = Blueprint('Checkin', __name__)
 
 
 @bp.get('/organizer/activities/<int:activity_id>/checkin-code')

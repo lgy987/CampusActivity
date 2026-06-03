@@ -4,7 +4,7 @@ from app.common.response import success
 from app.common.errors import BusinessError
 from app.services.user_service import UserService
 
-bp = Blueprint('admin_users', __name__)
+bp = Blueprint('Admin_Users', __name__)
 
 
 @bp.get('/users')

@@ -3,7 +3,7 @@ from app.api.deps import require_auth, require_role
 from app.common.response import success
 from app.services.stats_service import StatsService
 
-bp = Blueprint('statistics', __name__)
+bp = Blueprint('Statistics', __name__)
 
 
 @bp.get('/admin/statistics')
