@@ -37,7 +37,8 @@ const navItems = [
   { label: '通知与公告', icon: Bell, to: '/notifications' },
 ]
 
-const displayName = computed(() => userStore.profile?.username || '学生用户')
+//const displayName = computed(() => userStore.profile?.username || '学生用户')
+const displayName = computed(() => userStore.userInfo?.username || '学生用户')
 
 function isActive(path: string) {
   if (path === '/activities') {
@@ -58,7 +59,8 @@ async function handleLogout() {
 }
 
 onMounted(() => {
-  if (auth.isLoggedIn && !userStore.profile) {
+//  if (auth.isLoggedIn && !userStore.profile) {
+  if (auth.isLoggedIn && !userStore.userInfo) {
     userStore.fetchProfile().catch(() => {})
   }
 })

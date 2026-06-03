@@ -213,7 +213,7 @@ const handleRegister = async () => {
     })
     
     console.log('注册响应:', data)
-    auth.setAuth(data.token, data.user_id, 'organizer')
+    auth.setAuth(data.token, data.user_Id, 'organizer')
     
     alert('注册成功，请等待管理员审核')
     router.push('/organizer/activities')

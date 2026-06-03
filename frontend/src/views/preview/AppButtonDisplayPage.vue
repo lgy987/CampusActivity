@@ -2,7 +2,7 @@
 import { AppButton } from '@/components/common'
 
 import { ref } from 'vue'
-import { Settings, ArrowRight } from '@lucide/vue'
+import { Settings, ArrowRight } from 'lucide-vue-next'
 
 const isSubmitting = ref(false)
 const saving = ref(false)

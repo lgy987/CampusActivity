@@ -192,7 +192,7 @@
 <script setup lang="ts">
 import AppForm from '@/components/layout/AppForm.vue'
 import type { FormField } from '@/components/layout/AppForm.vue'
-import { User, Mail, Lock, Phone, MapPin, Package, DollarSign, Tag, FileText, Globe, Bell, Moon, Shield, ShoppingBag, CreditCard } from '@lucide/vue'
+import { User, Mail, Lock, Phone, MapPin, Package, DollarSign, Tag, FileText, Globe, Bell, Moon, Shield, ShoppingBag, CreditCard } from 'lucide-vue-next'
 
 // 基础字段
 const basicFields: FormField[] = [

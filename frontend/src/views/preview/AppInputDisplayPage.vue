@@ -555,7 +555,7 @@
 import { ref, reactive } from 'vue'
 import AppInput from '@/components/common/AppInput.vue'
 import AppButton from '@/components/common/AppButton.vue'
-import { Search, Calendar, User, Check, Mail, Lock, Globe, MapPin, Moon, Palette } from '@lucide/vue'
+import { Search, Calendar, User, Check, Mail, Lock, Globe, MapPin, Moon, Palette } from 'lucide-vue-next'
 
 // 基础输入框
 const basicInput = ref('')
