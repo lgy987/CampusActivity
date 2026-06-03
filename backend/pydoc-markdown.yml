@@ -17,11 +17,10 @@ loaders:
       - app.api.user
       - app.api.activities
       - app.api.registrations
-      - app.api.checkins
+      - app.api.checkin
       - app.api.notifications
       - app.api.announcements
     search_path: [.]
-    recursive: true
 
 processors:
   - type: filter
@@ -45,24 +44,3 @@ renderer:
     method: 3
     function: 3
     variable: 4
-  descriptive_class_title: false
-  add_method_class_prefix: true
-  add_member_class_prefix: false
-  toc_depth: 3
-  
-  # 自定义页面头部
-  description: |
-    # 校园活动平台 API 文档
-    
-    本文档由 pydoc-markdown 自动生成，包含以下内容：
-    - 数据库模型定义
-    - 服务层业务逻辑
-    - API 路由接口
-    - 公共工具模块
-    
-    ## 模块导航
-    
-    - [数据模型](#models)
-    - [服务层](#appservices)
-    - [API 路由层](#appapi)
-    - [公共模块](#appcommon)
