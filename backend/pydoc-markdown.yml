@@ -8,31 +8,27 @@ loaders:
       - app.services.registration_service
       - app.services.checkin_service
       - app.services.notification_service
-      - app.services.stats_service
       - app.services.category_service
+      - app.services.stats_service
       - app.common.auth
       - app.common.errors
       - app.common.response
       - app.api.auth
       - app.api.user
       - app.api.activities
-      - app.api.registrations
+      - app.api.admin_activities
+      - app.api.admin_users
+      - app.api.categories
       - app.api.checkin
       - app.api.notifications
-      - app.api.announcements
+      - app.api.registrations
+      - app.api.statistics
     search_path: [.]
 
 processors:
   - type: filter
-    expression: |
-      not name.startswith('_') and 
-      name not in [
-        'Base', 'relationship', 'Column', 'declarative_base', 
-        'func', 'UniqueConstraint', 'ForeignKey', 'Text',
-        'db_session', 'get_db', 'SessionLocal', 'engine'
-      ]
+    expression: "not name.startswith('_')"
   - type: smart
-  - type: crossref
 
 renderer:
   type: markdown
@@ -42,5 +38,3 @@ renderer:
     module: 1
     class: 2
     method: 3
-    function: 3
-    variable: 4
