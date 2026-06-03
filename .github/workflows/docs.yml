@@ -1,24 +1,111 @@
-name: Deploy Docs
+name: Generate API Docs
 
 on:
   push:
-    branches:
-      - main
-
-permissions:
-  contents: write
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
-  deploy:
+  generate:
+    name: 生成后端 API 文档
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: 检出代码
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: 设置 Python
+        uses: actions/setup-python@v5
         with:
-          python-version: 3.11
+          python-version: '3.11'
 
-      - run: |
-          pip install mkdocs-material
-          mkdocs gh-deploy --force
+      - name: 缓存依赖
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-docs-${{ hashFiles('backend/requirements.txt') }}
+
+      - name: 安装依赖
+        working-directory: backend
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pydoc-markdown
+
+      - name: 创建文档配置
+        working-directory: backend
+        run: |
+          cat > pydoc-markdown.yml << 'EOF'
+          loaders:
+            - type: python
+              modules:
+                - app.services.auth_service
+                - app.services.user_service
+                - app.services.activity_service
+                - app.services.registration_service
+                - app.services.checkin_service
+                - app.services.notification_service
+                - app.services.stats_service
+                - app.services.category_service
+                - models
+          processors:
+            - type: filter
+              expression: "not name.startswith('_') and name not in ['Base', 'relationship', 'Column']"
+            - type: smart
+            - type: crossref
+          renderer:
+            type: markdown
+            filename: ../docs/API.md
+            header_level_by_type:
+              module: 1
+              class: 2
+              function: 3
+              variable: 4
+            description: |
+              # 校园活动平台 API 文档
+              
+              自动生成于 GitHub Actions。
+              
+              ## 服务模块
+          EOF
+
+      - name: 生成 API 文档
+        working-directory: backend
+        run: pydoc-markdown
+
+      - name: 生成 README 索引
+        run: |
+          mkdir -p docs
+          cat > docs/README.md << 'EOF'
+          # 校园活动平台文档
+
+          ## API 文档
+          - [完整 API 文档](./API.md)
+
+          ## 项目结构
+
+          ## 生成时间
+          EOF
+          echo "$(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> docs/README.md
+
+      - name: 检查文档变化
+        id: check
+        run: |
+          git add docs/API.md docs/README.md
+          if git diff --staged --quiet; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "📝 文档无变化，跳过提交"
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "📝 文档有变化，准备提交"
+          fi
+
+      - name: 提交文档
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "docs: auto-update API documentation [skip ci]"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
