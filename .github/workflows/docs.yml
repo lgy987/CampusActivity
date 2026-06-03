@@ -32,6 +32,12 @@ jobs:
           pip install -r requirements.txt
           pip install pydoc-markdown
 
+      - name: 设置 Python 路径
+        working-directory: backend
+        run: |
+          # 将当前目录添加到 Python 路径
+          echo "PYTHONPATH=$PWD" >> $GITHUB_ENV
+
       - name: 创建文档配置
         working-directory: backend
         run: |
@@ -39,34 +45,18 @@ jobs:
           loaders:
             - type: python
               modules:
-                - app.services.auth_service
-                - app.services.user_service
-                - app.services.activity_service
-                - app.services.registration_service
-                - app.services.checkin_service
-                - app.services.notification_service
-                - app.services.stats_service
-                - app.services.category_service
                 - models
+              search_path: [.]
           processors:
             - type: filter
               expression: "not name.startswith('_') and name not in ['Base', 'relationship', 'Column']"
             - type: smart
-            - type: crossref
           renderer:
             type: markdown
             filename: ../docs/API.md
             header_level_by_type:
-              module: 1
               class: 2
               function: 3
-              variable: 4
-            description: |
-              # 校园活动平台 API 文档
-              
-              自动生成于 GitHub Actions。
-              
-              ## 服务模块
           EOF
 
       - name: 生成 API 文档
@@ -104,7 +94,7 @@ jobs:
         if: steps.check.outputs.changed == 'true'
         run: |
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config.user.email "github-actions[bot]@users.noreply.github.com"
           git commit -m "docs: auto-update API documentation [skip ci]"
           git push
         env:
