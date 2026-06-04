@@ -24,7 +24,14 @@ jobs:
 
       - name: Install dependencies
         working-directory: frontend
-        run: pnpm install
+        run: |
+          if [ -f "pnpm-workspace.yaml" ]; then
+            mv pnpm-workspace.yaml pnpm-workspace.yaml.bak
+          fi
+          pnpm install
+          if [ -f "pnpm-workspace.yaml.bak" ]; then
+            mv pnpm-workspace.yaml.bak pnpm-workspace.yaml
+          fi
 
       - name: Build
         working-directory: frontend
