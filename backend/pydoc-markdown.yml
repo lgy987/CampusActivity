@@ -10,18 +10,22 @@ loaders:
       - app.services.notification_service
       - app.services.category_service
       - app.services.stats_service
+      - app.task.scheduler
       - app.common.auth
+      - app.common.database
       - app.common.errors
       - app.common.response
+      - app.common.serializers
+      - app.api.deps
       - app.api.auth
       - app.api.user
-      - app.api.activities
-      - app.api.admin_activities
       - app.api.admin_users
       - app.api.categories
+      - app.api.activities
+      - app.api.admin_activities
+      - app.api.registrations
       - app.api.checkin
       - app.api.notifications
-      - app.api.registrations
       - app.api.statistics
     search_path: [.]
 
@@ -32,7 +36,7 @@ processors:
 
 renderer:
   type: markdown
-  filename: API.md
+  filename: ../docs/API.md 
   render_toc: true
   header_level_by_type:
     module: 1

@@ -1,3 +1,10 @@
+"""
+统计服务模块
+
+提供平台级别的数据统计功能：
+- 平台整体数据统计（管理员用）
+- 用户活跃度排行榜
+"""
 from datetime import datetime, timedelta
 from sqlalchemy import func
 from app.common.database import db_session
@@ -6,16 +13,69 @@ from models import Activity, User, Organizer, Admin, Registration, Checkin, Cate
 
 
 class StatsService:
-    """统计服务"""
+    """
+    统计服务类
+    
+    提供平台数据统计和排行榜功能：
+    - 活动统计（按状态、按分类）
+    - 用户统计（学生、组织者、管理员）
+    - 参与统计（报名数、签到数、签到率）
+    - 用户活跃度排行榜
+    """
 
     ACTIVE_STATUSES = ('registered', 're_registered')
     PLATFORM_ACTIVITY_STATUSES = ('pending', 'open', 'edit_pending', 'ongoing', 'ended')
 
+    # ========== 私有辅助方法 ==========
+    @staticmethod
+    def _parse_period(period):
+        """
+        解析周期参数
+        
+        Args:
+            period (str): 周期类型
+                - week: 最近一周
+                - month: 最近一个月
+                - all: 全部时间
+        
+        Returns:
+            datetime: 周期开始时间，如果 period 为 all 则返回 None
+        
+        Raises:
+            BusinessError: period 参数无效
+        """
+        period = str(period or 'all').strip().lower()
+        if period not in ('week', 'month', 'all'):
+            raise BusinessError('period无效', code=400)
+        if period == 'week':
+            return datetime.utcnow() - timedelta(days=7)
+        if period == 'month':
+            return datetime.utcnow() - timedelta(days=30)
+        return None
+    # ========== 核心业务方法 ==========
     @staticmethod
     def get_platform_stats():
-        """获取平台数据统计（管理员）"""
+        """
+        获取平台数据统计（管理员）
+        
+        统计内容包括：
+        1. 活动统计：
+           - 活动总数
+           - 按状态的分布（待审核、报名中、进行中等）
+           - 按分类的分布
+        2. 用户统计：
+           - 学生总数
+           - 组织者总数
+           - 管理员总数
+        3. 参与统计：
+           - 总报名次数
+           - 总签到次数
+           - 平均签到率
+        
+        Returns:
+            dict: 平台统计数据
+        """
         with db_session() as session:
-            # 活动统计
             activity_query = session.query(Activity).filter(Activity.status.in_(StatsService.PLATFORM_ACTIVITY_STATUSES))
             activities_total = activity_query.count()
 
@@ -33,12 +93,10 @@ class StatsService:
             ).group_by(Category.name).all()
             by_categories = {name: count for name, count in category_counts}
 
-            # 用户统计
             student_count = session.query(User).filter(User.status != 'deleted').count()
             organizer_count = session.query(Organizer).filter(Organizer.status != 'deleted').count()
             admin_count = session.query(Admin).filter(Admin.status != 'deleted').count()
 
-            # 参与统计
             total_registrations = session.query(Registration).filter(
                 Registration.status.in_(StatsService.ACTIVE_STATUSES)
             ).count()
@@ -66,20 +124,29 @@ class StatsService:
             }
 
     @staticmethod
-    def _parse_period(period):
-        """解析周期参数"""
-        period = str(period or 'all').strip().lower()
-        if period not in ('week', 'month', 'all'):
-            raise BusinessError('period无效', code=400)
-        if period == 'week':
-            return datetime.utcnow() - timedelta(days=7)
-        if period == 'month':
-            return datetime.utcnow() - timedelta(days=30)
-        return None
-
-    @staticmethod
     def get_leaderboard(params):
-        """获取用户活跃度排行"""
+        """
+        获取用户活跃度排行
+        
+        根据用户的报名次数和签到次数进行排名
+        支持按周期（周/月/全部）、学院、年级筛选
+        
+        排名规则：
+        - 主要按签到次数降序
+        - 签到次数相同按报名次数降序
+        - 报名次数相同按用户ID升序
+        
+        Args:
+            params (dict): 查询参数
+                - period: 统计周期（week/month/all，默认all）
+                - college: 学院筛选（可选）
+                - grade: 年级筛选（可选）
+                - page: 页码（默认1）
+                - page_size: 每页数量（默认20，最大100）
+        
+        Returns:
+            dict: 分页的排行榜列表，每条包含排名、用户信息、报名次数、签到次数
+        """
         period = params.get('period', 'all')
         college = params.get('college', '').strip()
         grade = params.get('grade', '').strip()
@@ -95,7 +162,6 @@ class StatsService:
             if grade:
                 user_query = user_query.filter(User.grade == grade)
 
-            # 报名次数子查询
             reg_query = session.query(
                 Registration.user_id,
                 func.count(Registration.id).label('registration_count')
@@ -105,7 +171,6 @@ class StatsService:
             reg_query = reg_query.group_by(Registration.user_id)
             reg_subq = reg_query.subquery()
 
-            # 签到次数子查询
             checkin_query = session.query(
                 Checkin.user_id,
                 func.count(Checkin.id).label('effective_count')

@@ -1,3 +1,14 @@
+"""
+报名服务模块
+
+提供活动报名相关的完整功能：
+- 报名活动（名额控制、重复报名检查、被拒绝后的冷却时间）
+- 取消报名（延迟释放名额机制）
+- 我的报名列表
+- 活动报名人员列表（组织者视角）
+- 拒绝报名（支持累计拒绝次数，两次后禁止报名）
+- 报名数据统计
+"""
 from datetime import datetime, timedelta
 from collections import Counter
 from app.common.database import db_session
@@ -7,20 +18,41 @@ from app.services.notification_service import NotificationService
 from models import Activity, Registration, User, Checkin
 
 class RegistrationService:
-    """报名服务"""
+    """
+    报名服务类
+    
+    提供活动报名相关的业务逻辑：
+    - 报名/取消报名
+    - 名额管理（延迟释放机制）
+    - 拒绝报名（累计次数，两次禁止）
+    - 报名数据统计
+    """
 
     ACTIVE_STATUSES = ('registered', 're_registered')
-
+    # ========== 私有辅助方法 ==========
     @staticmethod
     def _now():
+        """获取当前 UTC 时间"""
         return datetime.utcnow()
 
     @staticmethod
     def _active_count(session, activity_id):
-        """计算有效报名人数（考虑延迟释放）"""
+        """
+        计算有效报名人数
+        
+        有效报名包括：
+        - 状态为 registered/re_registered 的记录
+        - 状态为 cancelled 但名额还未释放的记录（slot_release_at > now）
+        
+        Args:
+            session: 数据库会话
+            activity_id (int): 活动ID
+        
+        Returns:
+            int: 有效报名人数
+        """
         now = datetime.utcnow()
     
-        # 有效报名：registered/re_registered + 未过期的 cancelled
         return session.query(Registration).filter(
         Registration.activity_id == activity_id,
         (
@@ -31,10 +63,17 @@ class RegistrationService:
 
     @staticmethod
     def _refresh_participants(session, activity):
-        """刷新参与者数量，考虑延迟释放"""
+        """
+        刷新活动的当前参与人数
+        
+        处理已过期的取消报名（释放名额），然后重新计算有效报名数
+        
+        Args:
+            session: 数据库会话
+            activity: Activity 对象
+        """
         now = datetime.utcnow()
     
-        # 处理已过期的取消报名（释放名额）
         expired_regs = session.query(Registration).filter(
             Registration.activity_id == activity.id,
             Registration.status == 'cancelled',
@@ -43,8 +82,6 @@ class RegistrationService:
     
         for reg in expired_regs:
             reg.slot_release_at = None
-            # 注意：不改变 status，保持 cancelled 状态用于记录
-        # 重新计算有效报名数
         active_count = session.query(Registration).filter(
         Registration.activity_id == activity.id,
         (
@@ -56,12 +93,45 @@ class RegistrationService:
 
     @staticmethod
     def _remaining_slots(session, activity):
+        """
+        计算剩余名额
+        
+        Args:
+            session: 数据库会话
+            activity: Activity 对象
+        
+        Returns:
+            int: 剩余名额（不小于0）
+        """
         RegistrationService._refresh_participants(session, activity)
         return max(activity.max_participants - activity.current_participants, 0)
-
+    # ========== 核心业务方法 ==========
     @staticmethod
     def register(user_id, activity_id):
-        """报名活动"""
+        """
+        报名活动
+        
+        流程：
+        1. 验证活动状态和报名截止时间
+        2. 检查是否还有剩余名额
+        3. 检查用户报名状态：
+           - 已报名：拒绝重复报名
+           - 被拒绝两次：禁止再次报名
+           - 被拒绝一次：检查10分钟冷却期
+           - 已取消：重新激活报名
+           - 新用户：创建报名记录
+        4. 发送报名成功通知
+        
+        Args:
+            user_id (int): 用户ID
+            activity_id (int): 活动ID
+        
+        Returns:
+            dict: 包含 registration_id, status, remaining_slots
+        
+        Raises:
+            BusinessError: 活动不存在、不可报名、名额已满、重复报名等
+        """
         now = RegistrationService._now()
 
         with db_session() as session:
@@ -121,7 +191,28 @@ class RegistrationService:
 
     @staticmethod
     def cancel(user_id, activity_id):
-        """取消报名"""
+        """
+        取消报名
+        
+        取消后名额不会立即释放，而是有2分钟延迟释放
+        
+        流程：
+        1. 验证活动是否存在
+        2. 验证取消截止时间
+        3. 验证用户是否已报名
+        4. 设置状态为 cancelled，设置延迟释放时间
+        5. 发送取消通知
+        
+        Args:
+            user_id (int): 用户ID
+            activity_id (int): 活动ID
+        
+        Returns:
+            dict: 包含 release_time 的字典
+        
+        Raises:
+            BusinessError: 活动不存在、取消已截止、尚未报名
+        """
         now = RegistrationService._now()
 
         with db_session() as session:
@@ -154,7 +245,26 @@ class RegistrationService:
 
     @staticmethod
     def get_my_registrations(user_id, params):
-        """获取我的报名列表"""
+        """
+        获取我的报名列表
+        
+        只显示有效报名（registered/re_registered）
+        支持筛选：活动名称、活动ID、分类、开始日期、校区
+        
+        Args:
+            user_id (int): 用户ID
+            params (dict): 查询参数
+                - page: 页码
+                - page_size: 每页数量
+                - name: 活动名称（模糊匹配）
+                - activity_id: 活动ID
+                - category_id: 分类ID
+                - start_date: 开始日期
+                - campus: 校区
+        
+        Returns:
+            dict: 分页的报名列表，包含签到状态
+        """
         page = max(int(params.get('page', 1)), 1)
         page_size = min(max(int(params.get('page_size', 20)), 1), 100)
         activity_name = params.get('name', '').strip()
@@ -218,7 +328,25 @@ class RegistrationService:
 
     @staticmethod
     def get_activity_registrations(organizer_id, activity_id, params):
-        """获取活动报名人员列表（组织者）"""
+        """
+        获取活动报名人员列表（组织者视角）
+        
+        返回报名人员信息、签到情况、统计数据
+        
+        Args:
+            organizer_id (int): 组织者ID
+            activity_id (int): 活动ID
+            params (dict): 查询参数
+                - page: 页码
+                - page_size: 每页数量
+                - gender: 性别筛选
+                - college: 学院筛选
+                - grade: 年级筛选
+                - major: 专业筛选
+        
+        Returns:
+            dict: 分页的报名人员列表和统计数据
+        """
         page = max(int(params.get('page', 1)), 1)
         page_size = min(max(int(params.get('page_size', 20)), 1), 100)
 
@@ -236,7 +364,6 @@ class RegistrationService:
                 Registration.status.in_(('registered', 're_registered'))  
             )
 
-            # 筛选
             for field in ['gender', 'college', 'grade', 'major']:
                 value = params.get(field)
                 if value:
@@ -245,7 +372,6 @@ class RegistrationService:
             total = query.count()
             all_rows = query.all()
 
-            # 统计
             active_rows = all_rows
             active_user_ids = [r.user_id for r in active_rows]
             total_checked = session.query(Checkin).filter(
@@ -289,7 +415,25 @@ class RegistrationService:
 
     @staticmethod
     def reject_registration(organizer_id, registration_id, reason):
-        """拒绝报名"""
+        """
+        拒绝报名（组织者）
+        
+        拒绝逻辑：
+        - 第1次拒绝：状态变为 rejected
+        - 第2次拒绝：状态变为 blocked（永久禁止报名）
+        - 每次拒绝增加 reject_count
+        
+        Args:
+            organizer_id (int): 组织者ID
+            registration_id (int): 报名记录ID
+            reason (str): 拒绝原因
+        
+        Returns:
+            dict: 包含 new_status 和 reject_count
+        
+        Raises:
+            BusinessError: 报名记录不存在、无权操作、没有有效报名
+        """
         with db_session() as session:
             row = session.get(Registration, registration_id)
             if not row:
@@ -321,7 +465,18 @@ class RegistrationService:
 
     @staticmethod
     def get_registration_stats(organizer_id, activity_id):
-        """获取活动数据统计"""
+        """
+        获取活动数据统计（组织者）
+        
+        返回报名人数统计、签到人数、按性别/学院/年级/专业分布
+        
+        Args:
+            organizer_id (int): 组织者ID
+            activity_id (int): 活动ID
+        
+        Returns:
+            dict: 统计数据
+        """
         with db_session() as session:
             activity = session.get(Activity, activity_id)
             if not activity:
