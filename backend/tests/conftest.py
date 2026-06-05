@@ -57,8 +57,8 @@ def test_user(db_session_fixture):
         email=f"test_{unique_suffix}@example.com",
         username="testuser",
         password=generate_password_hash("test123"),
-        gender="M",
-        college="CS",
+        gender="男",
+        college="计算机学院",
         major="CS",
         grade="2024",
         status="active"
