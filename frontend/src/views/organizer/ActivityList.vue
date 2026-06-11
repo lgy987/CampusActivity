@@ -263,8 +263,9 @@ const goToPage = (page: number) => {
 }
 const goToDetail = (id: number) => router.push(`/organizer/activity?id=${id}`)
 
-const goToCreateActivity = () => {
-  const status = organizerStatus.value
+const goToCreateActivity = async () => {
+  await userStore.fetchProfile()
+  const status = userStore.userInfo?.status || ''
   if (status === 'pending') {
     alert('您的账号正在审核中，暂不能创建活动。请等待管理员审核通过后再试。')
     return
